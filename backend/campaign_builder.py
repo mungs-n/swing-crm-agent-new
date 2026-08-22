@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 import auth
 import data as data_module
+import email_sender
 from utils.rfm import calculate_rfm, assign_segment
 
 router = APIRouter()
@@ -269,7 +270,8 @@ def create_campaign(req: CreateCampaignRequest, session: dict = Depends(auth.get
 
 @router.post("/api/campaigns/test-send")
 def test_send_campaign(req: TestSendRequest, session: dict = Depends(auth.get_session)):
-    """실제로 발송하지 않고(연동 전), 테스트 발송 1건을 캠페인 관리 목록에 기록만 남긴다."""
+    """이메일은 SendGrid로 실제 발송한다. 카카오톡/문자/웹 푸시는 아직 발송 연동 전이라
+    (사업자 등록·템플릿 심사·기기 토큰 수집이 선행돼야 함) 기록만 남긴다."""
     if req.channel not in CHANNEL_META:
         raise HTTPException(status_code=400, detail="알 수 없는 채널이에요.")
     if not req.receiver.strip():
@@ -278,14 +280,25 @@ def test_send_campaign(req: TestSendRequest, session: dict = Depends(auth.get_se
         raise HTTPException(status_code=400, detail="메시지 제목/본문을 입력해주세요.")
 
     channel_label = CHANNEL_META[req.channel]["label"]
+    receiver = req.receiver.strip()
+
+    if req.channel == "email":
+        try:
+            status_code = email_sender.send_email(receiver, req.title.strip(), req.body.strip())
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"이메일 발송에 실패했어요: {e}")
+        status = f"테스트 발송 완료 ({channel_label}, SendGrid {status_code})"
+    else:
+        status = f"테스트 발송 ({channel_label}) - 실제 발송 연동 전이라 기록만 남겨요."
+
     campaign = {
         "campaign_id": str(uuid.uuid4())[:8],
         "sent_at": datetime.now().isoformat(),
         "segment": req.segment,
         "channel": req.channel,
         "target_count": 1,
-        "message_summary": f"제목: {req.title.strip()}\n\n본문: {req.body.strip()}\n\n(테스트 수신자: {req.receiver.strip()})",
-        "status": f"테스트 발송 ({channel_label})",
+        "message_summary": f"제목: {req.title.strip()}\n\n본문: {req.body.strip()}\n\n(테스트 수신자: {receiver})",
+        "status": status,
         "created_at": datetime.now().isoformat(),
     }
     campaigns = _load_store()
