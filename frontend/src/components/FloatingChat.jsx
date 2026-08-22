@@ -164,6 +164,15 @@ export default function FloatingChat() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, loading]);
 
+  // 입력창을 한 줄짜리 <input>에서 <textarea>로 바꾸면서, 내용이 길어지면 (최대
+  // 5줄까지) 높이가 같이 늘어나게 한다 - 그 이상은 스크롤.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
+
   const handleSend = (q) => {
     const question = (q ?? input).trim();
     if (!question || loading) return;
@@ -191,7 +200,7 @@ export default function FloatingChat() {
       )}
 
       {isOpen && (
-        <div className="fixed bottom-20 right-5 z-50 flex h-[500px] w-[320px] flex-col overflow-hidden rounded-xl border border-violet-100 bg-white shadow-2xl shadow-violet-300/30">
+        <div className="fixed bottom-20 right-5 z-50 flex h-[680px] w-[420px] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-violet-100 bg-white shadow-2xl shadow-violet-300/30">
           <div className="flex items-center justify-between border-b border-violet-100 px-3 py-2.5">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-slate-800">🤖 AI 어시스턴트</span>
@@ -257,7 +266,7 @@ export default function FloatingChat() {
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 border-t border-violet-100 p-2.5">
+          <div className="flex items-end gap-1.5 border-t border-violet-100 p-2.5">
             <div className="relative flex-1">
               {ghostSuggestion && !input && (
                 <div className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-md px-2.5 py-1.5 text-xs text-slate-400">
@@ -265,9 +274,10 @@ export default function FloatingChat() {
                   <span className="ml-1.5 shrink-0 rounded border border-slate-300 px-1 text-[9px] text-slate-400">Tab</span>
                 </div>
               )}
-              <input
+              <textarea
                 ref={inputRef}
                 value={input}
+                rows={1}
                 onChange={(e) => { setInput(e.target.value); if (e.target.value) setGhostSuggestion(""); }}
                 onKeyDown={(e) => {
                   if (e.key === "Tab") {
@@ -277,14 +287,16 @@ export default function FloatingChat() {
                     if (input.trim()) { e.preventDefault(); handleSend(); }
                     return;
                   }
-                  if (e.key === "Enter") {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
                     // 추천이 떠있는 채로 Enter를 누르면 그 추천을 그대로 전송한다.
                     if (ghostSuggestion && !input) { handleSend(ghostSuggestion); return; }
                     handleSend();
                   }
+                  // Shift+Enter는 줄바꿈으로 그냥 둔다 (기본 textarea 동작).
                 }}
-                placeholder={ghostSuggestion ? "" : "궁금한 걸 물어보세요 (Tab으로 바로 전송)"}
-                className="relative w-full rounded-md border border-violet-100 bg-violet-50/30 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
+                placeholder={ghostSuggestion ? "" : "궁금한 걸 물어보세요 (Enter로 전송, Shift+Enter로 줄바꿈)"}
+                className="relative max-h-[120px] w-full resize-none overflow-y-auto rounded-md border border-violet-100 bg-violet-50/30 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
               />
             </div>
             <button
