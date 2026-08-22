@@ -172,12 +172,13 @@ export default function FloatingChat() {
     send(question);
   };
 
-  // 회색 추천 문구가 떠있고 아직 아무것도 안 쳤을 때 Tab/Enter를 누르면, 그 추천을
-  // 그대로 전송한다. 뭔가 타이핑을 시작하면(=input이 비어있지 않으면) 이 분기를
-  // 타지 않으니 추천은 자연히 무시되고 원래 입력이 그대로 나간다.
+  // 회색 추천 문구가 떠있고 아직 아무것도 안 쳤을 때 Tab을 누르면, 그 추천을
+  // "채워 넣기만" 한다 - 바로 전송하지 않고 진짜(검은색) 입력창으로 옮겨서 수정할
+  // 수 있게 하고, 실제 전송은 그 뒤에 따로 Enter를 누르거나 보내기를 눌러야 한다.
   const acceptGhost = () => {
     if (!ghostSuggestion || input) return false;
-    handleSend(ghostSuggestion);
+    setInput(ghostSuggestion);
+    setGhostSuggestion("");
     return true;
   };
 
@@ -269,12 +270,18 @@ export default function FloatingChat() {
                 value={input}
                 onChange={(e) => { setInput(e.target.value); if (e.target.value) setGhostSuggestion(""); }}
                 onKeyDown={(e) => {
-                  if (e.key === "Tab" || e.key === "Enter") {
-                    if (acceptGhost()) { e.preventDefault(); return; }
+                  if (e.key === "Tab") {
+                    // 추천이 떠있으면 Tab은 "채워 넣기만" 한다 - 바로 안 보내고 수정할 기회를 준다.
+                    if (ghostSuggestion && !input) { e.preventDefault(); acceptGhost(); return; }
+                    // 추천이 없고 직접 입력한 게 있으면 Tab으로 바로 전송.
+                    if (input.trim()) { e.preventDefault(); handleSend(); }
+                    return;
                   }
-                  if (e.key === "Enter") handleSend();
-                  // Tab으로도 직접 입력한 걸 보낼 수 있게 (추천 문구가 없을 때).
-                  if (e.key === "Tab" && input.trim()) { e.preventDefault(); handleSend(); }
+                  if (e.key === "Enter") {
+                    // 추천이 떠있는 채로 Enter를 누르면 그 추천을 그대로 전송한다.
+                    if (ghostSuggestion && !input) { handleSend(ghostSuggestion); return; }
+                    handleSend();
+                  }
                 }}
                 placeholder={ghostSuggestion ? "" : "궁금한 걸 물어보세요 (Tab으로 바로 전송)"}
                 className="relative w-full rounded-md border border-violet-100 bg-violet-50/30 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
