@@ -29,9 +29,14 @@ export async function requestFcmToken() {
   if (permission !== "granted") {
     throw new Error("알림 권한이 거부됐어요. 브라우저 설정에서 알림을 허용해주세요.");
   }
-  const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+  // register()는 서비스 워커가 "설치 중"이기만 해도 바로 resolve된다 - 아직 활성화
+  // (active) 전이라 getToken()이 내부적으로 하는 pushManager.subscribe()가
+  // "no active Service Worker" 에러로 실패한다. navigator.serviceWorker.ready는
+  // 실제로 활성화된 뒤에야 resolve되므로, 이걸로 한 번 더 기다려야 한다.
+  await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+  const readyRegistration = await navigator.serviceWorker.ready;
   const messaging = getMessaging(app);
-  const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+  const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: readyRegistration });
   if (!token) {
     throw new Error("토큰을 받아오지 못했어요. 잠시 후 다시 시도해주세요.");
   }
