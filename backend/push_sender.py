@@ -13,7 +13,7 @@ from pathlib import Path
 import firebase_admin
 from firebase_admin import credentials, messaging
 
-ATHLEPA_SITE_URL = os.environ.get("ATHLEPA_SITE_URL", "https://athlepa-demo.netlify.app/")
+ATHLEPA_SITE_URL = os.environ.get("ATHLEPA_SITE_URL", "https://swing-crm-agent-new.vercel.app/")
 
 _KEY_PATH = Path(__file__).parent / "serviceAccountKey.json"
 
