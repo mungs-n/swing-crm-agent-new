@@ -72,6 +72,99 @@ def _annotate_rank_deviation(items: list, value_key: str) -> list:
     return items
 
 
+_PERSONA_KR_TO_KEY = {v: k for k, v in PERSONA_KR.items()}
+
+
+def _age_bucket(age) -> str:
+    decade = int(age) // 10 * 10
+    return "60대 이상" if decade >= 60 else f"{decade}대"
+
+
+def _users_matching_dimension(dimension: str, value: str) -> set:
+    """성별/연령대/페르소나/세그먼트 중 하나의 축에서, 특정 항목 값에 해당하는
+    user_id 집합을 돌려준다. get_segment_deep_dive가 '이 항목만' 걸러내는 데 쓴다."""
+    users = data.load_users(_current_dataset_source.get())
+    if dimension == "성별":
+        code = {"여성": "F", "남성": "M"}.get(value, value)
+        return set(users.loc[users["gender"] == code, "user_id"]) if "gender" in users.columns else set()
+    if dimension == "연령대":
+        if "age" not in users.columns:
+            return set()
+        buckets = users["age"].apply(_age_bucket)
+        return set(users.loc[buckets == value, "user_id"])
+    if dimension == "페르소나":
+        if "persona_type" not in users.columns:
+            return set()
+        key = _PERSONA_KR_TO_KEY.get(value, value)
+        return set(users.loc[users["persona_type"] == key, "user_id"])
+    if dimension == "세그먼트":
+        orders_all, _ = data.load(_current_dataset_source.get())
+        if orders_all.empty:
+            return set()
+        rfm = assign_segment(calculate_rfm(orders_all.copy()))
+        return set(rfm.loc[rfm["segment"] == value, "user_id"])
+    return set()
+
+
+def tool_get_segment_deep_dive(dimension: str, value: str, start_date: str, end_date: str) -> dict:
+    """특정 축(성별/연령대/페르소나/세그먼트)의 항목 하나를 골라, 그 고객군이 다른
+    축(카테고리/채널/연령대)에서는 어떻게 분포하는지와 나머지 고객 대비 구매 행동이
+    어떻게 다른지를 반환한다. '이 항목이 몇 %인지'는 이미 차트에 보이니, 차트
+    하나만 봐서는 알 수 없는 교차 정보를 주는 게 이 도구의 목적이다."""
+    target_ids = _users_matching_dimension(dimension, value)
+    if not target_ids:
+        return {"오류": f"{dimension} '{value}'에 해당하는 고객을 찾을 수 없습니다."}
+
+    period_orders, _ = _period_slices(start_date, end_date)
+    users = data.load_users(_current_dataset_source.get())
+
+    target_orders = period_orders[period_orders["user_id"].isin(target_ids)]
+    other_orders = period_orders[~period_orders["user_id"].isin(target_ids)]
+
+    def top_breakdown(df, col, n=5):
+        if df.empty or col not in df.columns:
+            return []
+        g = df.groupby(col)["total_amount"].sum().sort_values(ascending=False).head(n)
+        items = [{"항목": str(k), "매출": int(v)} for k, v in g.items()]
+        return _annotate_rank_deviation(items, "매출")
+
+    category_breakdown = top_breakdown(target_orders, "category")
+
+    channel_breakdown = []
+    if "acquisition_channel" in users.columns and not target_orders.empty:
+        merged = target_orders.merge(users[["user_id", "acquisition_channel"]], on="user_id")
+        if not merged.empty:
+            g = merged.groupby("acquisition_channel")["total_amount"].sum().sort_values(ascending=False)
+            items = [{"항목": CHANNEL_KR.get(k, k), "매출": int(v)} for k, v in g.items()]
+            channel_breakdown = _annotate_rank_deviation(items, "매출")
+
+    age_breakdown = []
+    if dimension != "연령대" and "age" in users.columns:
+        target_users = users[users["user_id"].isin(target_ids)]
+        buckets = target_users["age"].apply(_age_bucket).value_counts()
+        order = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
+        age_breakdown = [{"연령대": k, "고객수": int(buckets.get(k, 0))} for k in order if buckets.get(k, 0) > 0]
+        age_breakdown.sort(key=lambda r: r["고객수"], reverse=True)
+
+    target_revenue = float(target_orders["total_amount"].sum())
+    other_revenue = float(other_orders["total_amount"].sum())
+    target_aov = target_revenue / len(target_orders) if len(target_orders) else 0
+    other_aov = other_revenue / len(other_orders) if len(other_orders) else 0
+
+    return {
+        "기간": f"{start_date} ~ {end_date}",
+        "조건": f"{dimension} = {value}",
+        "대상_고객수": len(target_ids),
+        "대상_주문수": len(target_orders),
+        "대상_AOV": int(target_aov),
+        "나머지_고객_AOV": int(other_aov),
+        "AOV_격차_퍼센트": round((target_aov - other_aov) / other_aov * 100, 1) if other_aov else None,
+        "이_그룹의_카테고리별_매출_TOP5": category_breakdown,
+        "이_그룹의_유입채널별_매출_TOP5": channel_breakdown,
+        "이_그룹의_연령대_분포": age_breakdown,
+    }
+
+
 def tool_get_kpi_summary(start_date: str, end_date: str) -> dict:
     period_orders, period_events = _period_slices(start_date, end_date)
     gmv = period_orders["total_amount"].sum()
@@ -230,6 +323,17 @@ def tool_get_gmv_trend(start_date: str, end_date: str) -> dict:
     period_orders, _ = _period_slices(start_date, end_date)
     if period_orders.empty:
         return {"기간": f"{start_date} ~ {end_date}", "월별_추이": []}
+
+    # "이례적으로 튀었다"를 판단하려면 평소 변동폭이 필요한데, 조회 기간이 짧으면
+    # 그 안에서만 계산한 변동폭은 표본이 너무 적어 기준이 안 된다. 그래서 항상 전체
+    # 데이터 기간의 월별 증감률로 "평소 변동폭"(표준편차)을 구해두고, 그 기준으로
+    # 조회 기간 안의 달들이 이례적인지만 표시한다.
+    orders_all, _ = data.load(_current_dataset_source.get())
+    monthly_all = orders_all.copy()
+    monthly_all["월"] = monthly_all["order_date"].dt.to_period("M").astype(str)
+    pct_all = monthly_all.groupby("월")["total_amount"].sum().sort_index().pct_change().dropna() * 100
+    std_change = float(pct_all.std()) if len(pct_all) >= 2 else None
+
     monthly = period_orders.copy()
     monthly["월"] = monthly["order_date"].dt.to_period("M").astype(str)
     grouped = monthly.groupby("월").agg(GMV=("total_amount", "sum"), 주문_수=("order_id", "count")).reset_index()
@@ -237,9 +341,18 @@ def tool_get_gmv_trend(start_date: str, end_date: str) -> dict:
     for _, row in grouped.iterrows():
         gmv = int(row["GMV"])
         delta = round((gmv - prev_gmv) / prev_gmv * 100, 1) if prev_gmv else None
-        rows.append({"월": row["월"], "GMV": gmv, "주문_수": int(row["주문_수"]), "전월_대비_증감률_퍼센트": delta})
+        is_anomaly = bool(std_change and delta is not None and abs(delta) >= 1.5 * std_change)
+        rows.append({
+            "월": row["월"], "GMV": gmv, "주문_수": int(row["주문_수"]),
+            "전월_대비_증감률_퍼센트": delta,
+            "평소_변동폭보다_이례적으로_크게_변함": is_anomaly,
+        })
         prev_gmv = gmv
-    return {"기간": f"{start_date} ~ {end_date}", "월별_추이": rows}
+    return {
+        "기간": f"{start_date} ~ {end_date}",
+        "평소_월간_변동폭_퍼센트(표준편차)": round(std_change, 1) if std_change else None,
+        "월별_추이": rows,
+    }
 
 
 def tool_get_rfm_summary(start_date: str, end_date: str) -> dict:
@@ -262,47 +375,91 @@ def tool_get_rfm_summary(start_date: str, end_date: str) -> dict:
     return {"기간": f"{start_date} ~ {end_date}", "세그먼트별_RFM": _annotate_rank_deviation(items, "평균_구매금액")}
 
 
-def _recommend_segment(start_date, end_date, users: pd.DataFrame, orders: pd.DataFrame, events: pd.DataFrame) -> str:
-    """기준치 대비 심각도로 점수화해서 지금 가장 시급한 세그먼트를 고른다 (원본
-    ai_insights/chatbot.py의 recommend_segment와 동일한 채점 로직)."""
+def _recommend_segment(start_date, end_date, users: pd.DataFrame, orders: pd.DataFrame, events: pd.DataFrame) -> dict:
+    """고정된 매직넘버 기준(예: '이탈률 45% 넘으면 위험') 대신, 이 회사의 직전
+    동일 길이 기간 대비 얼마나 악화됐는지로 점수를 매겨서 가장 시급한 세그먼트를
+    고른다. 회사마다 '평소' 수준이 다르므로, 절대 기준보다 자기 자신의 히스토리와
+    비교하는 게 더 정확하다는 판단."""
     period_orders, period_events = _period_slices(start_date, end_date)
-    total_users = users[users["signup_date"].dt.date <= pd.Timestamp(end_date).date()]["user_id"].nunique()
 
-    dormant_count = (users["persona_type"] == "dormant").sum()
-    at_risk_count = (users["persona_type"] == "churn_risk").sum()
+    start_ts, end_ts = pd.Timestamp(start_date), pd.Timestamp(end_date)
+    span = end_ts - start_ts
+    prev_end = start_ts - pd.Timedelta(days=1)
+    prev_start = prev_end - span
+    prev_orders = orders[(orders["order_date"] >= prev_start) & (orders["order_date"] <= prev_end)] if not orders.empty else orders
+    prev_events = events[(events["timestamp"] >= prev_start) & (events["timestamp"] <= prev_end)] if not events.empty else events
 
-    new_users = users[(pd.Timestamp(end_date) - users["signup_date"]).dt.days.between(0, 30)]
-    new_user_ids = set(new_users["user_id"])
-    new_user_purchasers = period_orders[period_orders["user_id"].isin(new_user_ids)]["user_id"].nunique() if not period_orders.empty else 0
-    new_user_purchase_rate = (new_user_purchasers / len(new_users)) if len(new_users) > 0 else 1.0
+    # "전체 기간"을 그대로 조회하면(기본값) 데이터셋보다 더 이전의 진짜 "직전 기간"이
+    # 존재하지 않아 prev가 통째로 비어버린다 - 그러면 모든 후보의 악화율이 0으로
+    # 뭉개져서 판단이 사실상 무의미해진다. 그럴 땐 조회 기간 자체를 반으로 갈라
+    # 앞/뒤로 비교한다(main.py의 get_kpi가 "전체 기간" 기본값일 때 쓰는 것과 동일한 방식).
+    if prev_orders.empty and prev_events.empty:
+        mid = start_ts + span / 2
+        prev_orders = orders[(orders["order_date"] >= start_ts) & (orders["order_date"] < mid)] if not orders.empty else orders
+        prev_events = events[(events["timestamp"] >= start_ts) & (events["timestamp"] < mid)] if not events.empty else events
+        period_orders = orders[(orders["order_date"] >= mid) & (orders["order_date"] <= end_ts)] if not orders.empty else orders
+        period_events = events[(events["timestamp"] >= mid) & (events["timestamp"] <= end_ts)] if not events.empty else events
 
-    cart_users = period_events[period_events["event_type"] == "add_to_cart"]["user_id"].nunique() if not period_events.empty else 0
-    purchase_users = period_events[period_events["event_type"] == "purchase"]["user_id"].nunique() if not period_events.empty else 0
-    cart_abandon_rate = (1 - purchase_users / cart_users) * 100 if cart_users > 0 else 0
+    def _rates(o: pd.DataFrame, e: pd.DataFrame) -> dict:
+        new_users = users[(end_ts - users["signup_date"]).dt.days.between(0, 30)]
+        new_ids = set(new_users["user_id"])
+        new_purchasers = o[o["user_id"].isin(new_ids)]["user_id"].nunique() if not o.empty else 0
+        new_rate = (new_purchasers / len(new_users)) if len(new_users) > 0 else None
 
-    coupon_rate = period_orders["coupon_used"].mean() * 100 if ("coupon_used" in period_orders.columns and len(period_orders)) else 0
-    repeat_purchase_rate = _compute_repeat_purchase_rate(period_orders)
+        cart_users = e[e["event_type"] == "add_to_cart"]["user_id"].nunique() if not e.empty else 0
+        purchase_users = e[e["event_type"] == "purchase"]["user_id"].nunique() if not e.empty else 0
+        cart_abandon = (1 - purchase_users / cart_users) if cart_users > 0 else None
+
+        coupon = o["coupon_used"].mean() if ("coupon_used" in o.columns and len(o)) else None
+        repeat = _compute_repeat_purchase_rate(o) / 100 if len(o) else None
+        return {"신규_구매전환율": new_rate, "장바구니_이탈률": cart_abandon, "쿠폰_사용률": coupon, "재구매율": repeat}
+
+    cur, prev = _rates(period_orders, period_events), _rates(prev_orders, prev_events)
+
+    def worsening(key: str, higher_is_bad: bool) -> float:
+        c, p = cur[key], prev[key]
+        if c is None or p is None or p == 0:
+            return 0.0
+        change = (c - p) / p
+        return change if higher_is_bad else -change
 
     candidates = [
-        ("휴면 고객", (dormant_count / total_users) / 0.15 if total_users else 0),
-        ("이탈 위험 고객", (at_risk_count / total_users) / 0.15 if total_users else 0),
-        ("신규 탐색자", max(0.0, (0.3 - new_user_purchase_rate) / 0.3) if len(new_users) > 0 else 0.0),
-        ("이탈 위험 고객", (cart_abandon_rate / 100) / 0.45),
-        ("할인 헌터", (coupon_rate / 100) / 0.50),
-        ("브랜드 충성 고객", (repeat_purchase_rate / 100) / 0.70),
-        ("충동 구매자", 0.5),
+        ("신규 탐색자", worsening("신규_구매전환율", higher_is_bad=False)),
+        ("이탈 위험 고객", worsening("장바구니_이탈률", higher_is_bad=True)),
+        ("할인 헌터", worsening("쿠폰_사용률", higher_is_bad=True)),
+        ("브랜드 충성 고객", worsening("재구매율", higher_is_bad=False)),
     ]
-    best_segment, _ = max(candidates, key=lambda pair: pair[1])
-    return best_segment
+
+    # 휴면/이탈위험 고객 수는 페르소나 분류상 기간과 무관하게 고정이라 "직전 기간 대비
+    # 악화"로는 비교가 안 된다 - 대신 "페르소나 평균 그룹 크기 대비 얼마나 큰 그룹인지"로 비교한다.
+    persona_counts = users["persona_type"].value_counts() if "persona_type" in users.columns else pd.Series(dtype=int)
+    persona_avg = persona_counts.mean() if len(persona_counts) else 0
+    dormant_vs_avg = (persona_counts.get("dormant", 0) / persona_avg - 1) if persona_avg else 0.0
+    at_risk_vs_avg = (persona_counts.get("churn_risk", 0) / persona_avg - 1) if persona_avg else 0.0
+    candidates += [("휴면 고객", dormant_vs_avg), ("이탈 위험 고객", at_risk_vs_avg)]
+
+    best_segment, best_score = max(candidates, key=lambda pair: pair[1])
+    return {
+        "segment": best_segment,
+        "판단_근거": {
+            "직전_동일기간_대비_변화율_퍼센트(배수_아님)": {
+                k: (round(worsening(k, True) * 100, 1) if k != "재구매율" else round(-worsening(k, False) * 100, 1))
+                for k in ["신규_구매전환율", "장바구니_이탈률", "쿠폰_사용률", "재구매율"]
+            },
+            "휴면_고객_수_평균_페르소나_그룹_대비_배율": round(dormant_vs_avg + 1, 2),
+            "이탈위험_고객_수_평균_페르소나_그룹_대비_배율": round(at_risk_vs_avg + 1, 2),
+        },
+    }
 
 
 def tool_get_top_priority_issue(start_date: str, end_date: str) -> dict:
     users = data.load_users(_current_dataset_source.get())
     orders, events = data.load(_current_dataset_source.get())
-    segment = _recommend_segment(start_date, end_date, users, orders, events)
+    recommendation = _recommend_segment(start_date, end_date, users, orders, events)
     return {
         "기간": f"{start_date} ~ {end_date}",
-        "가장_시급한_세그먼트": segment,
+        "가장_시급한_세그먼트": recommendation["segment"],
+        "판단_근거(직전_동일기간_대비_또는_평균_페르소나_대비)": recommendation["판단_근거"],
         "참고_핵심지표": tool_get_kpi_summary(start_date, end_date),
         "참고_페르소나_분포": tool_get_persona_counts()["페르소나별_고객_수"],
     }
@@ -352,6 +509,7 @@ def _execute_campaign_proposal(segment: str, channel_label: str, message: str, a
 
 
 TOOL_FUNCTIONS = {
+    "get_segment_deep_dive": tool_get_segment_deep_dive,
     "get_kpi_summary": tool_get_kpi_summary,
     "get_category_breakdown": tool_get_category_breakdown,
     "get_channel_breakdown": tool_get_channel_breakdown,
@@ -368,6 +526,7 @@ TOOL_FUNCTIONS = {
 }
 
 TOOL_LABELS = {
+    "get_segment_deep_dive": {"label": "고객군 교차 분석", "chart_key": None},
     "get_kpi_summary": {"label": "핵심 지표(GMV·AOV·전환율 등) 조회", "chart_key": "gmv"},
     "get_kpi_comparison": {"label": "기간별 지표 비교", "chart_key": "gmv"},
     "get_category_breakdown": {"label": "카테고리별 매출 조회", "chart_key": "category"},
@@ -399,6 +558,16 @@ QUICK_REPLIES = {
 }
 
 CHATBOT_TOOLS = [
+    {
+        "name": "get_segment_deep_dive",
+        "description": "특정 축(성별/연령대/페르소나/세그먼트)의 항목 하나(예: 성별=여성, 페르소나=할인 헌터)를 골라서, 그 고객군이 카테고리별/채널별로 어디에 몰려있는지, 연령대 분포는 어떤지, 나머지 고객 대비 AOV가 얼마나 다른지를 반환합니다. 특정 항목 하나를 콕 집어 더 깊게 물어보는 질문(예: '여성 고객은 뭘 많이 사?', '할인 헌터는 어떤 채널로 들어와?')이나, 차트 항목을 클릭해서 온 질문([차트이름 중 항목] 형태로 시작하는 메시지)에 사용하세요. 이미 화면에 보이는 값(그 항목의 비중 %)을 반복하는 용도가 아니라, 화면에 없는 교차 정보를 줄 때만 쓰는 도구입니다.",
+        "input_schema": {"type": "object", "properties": {
+            "dimension": {"type": "string", "description": "고객을 나누는 기준 축. 다음 중 하나: 성별, 연령대, 페르소나, 세그먼트"},
+            "value": {"type": "string", "description": "그 축에서 조회할 구체적 값. 성별=남성/여성, 연령대=10대~60대 이상, 페르소나=신규 탐색자/충동 구매자/할인 헌터/브랜드 충성 고객/이탈 위험 고객/휴면 고객, 세그먼트=VIP/충성 고객/이탈 위험/휴면"},
+            "start_date": {"type": "string", "description": "조회 시작일 (YYYY-MM-DD)"},
+            "end_date": {"type": "string", "description": "조회 종료일 (YYYY-MM-DD)"},
+        }, "required": ["dimension", "value", "start_date", "end_date"]},
+    },
     {
         "name": "get_kpi_summary",
         "description": "특정 기간의 GMV, AOV, 주문 건수, 활성 고객 수, 구매 전환율, 장바구니 이탈률, 재구매율을 정확히 계산해서 반환합니다. 매출/전환율/주문/DAU/WAU/MAU 관련 질문에 사용하세요 (예: '오늘 활성 고객'은 기간을 하루로, '이번 주'는 7일로 주면 됩니다).",
@@ -472,7 +641,7 @@ CHATBOT_TOOLS = [
     },
     {
         "name": "get_gmv_trend",
-        "description": "특정 기간을 월별로 나눠 GMV와 주문 수 추이를 반환합니다. 'GMV 추이', '주문 수 추이' 같은 질문에 사용하세요.",
+        "description": "특정 기간을 월별로 나눠 GMV와 주문 수 추이를 반환합니다. 각 달에 '평소_변동폭보다_이례적으로_크게_변함' 플래그가 같이 오는데, 이건 전체 데이터 기간의 월간 증감률 표준편차를 기준으로 계산한 겁니다 - true인 달이 있으면 그냥 숫자만 읽지 말고 '평소보다 이례적으로 변했다'는 점을 반드시 짚어주세요. 'GMV 추이', '주문 수 추이', '이번 달 특이한 점' 같은 질문에 사용하세요.",
         "input_schema": {"type": "object", "properties": {
             "start_date": {"type": "string", "description": "조회 시작일 (YYYY-MM-DD)"},
             "end_date": {"type": "string", "description": "조회 종료일 (YYYY-MM-DD)"},
@@ -488,7 +657,7 @@ CHATBOT_TOOLS = [
     },
     {
         "name": "get_top_priority_issue",
-        "description": "지금 가장 시급하게 대응해야 할 고객 세그먼트를 규칙 기반으로 추천합니다. '가장 시급한 문제', '지금 뭐가 문제야' 같은 질문에 사용하세요.",
+        "description": "지금 가장 시급하게 대응해야 할 고객 세그먼트를 추천합니다. 고정된 절대 기준이 아니라 이 회사의 직전 동일 길이 기간 대비 악화율(또는 페르소나 평균 그룹 크기 대비 배율)로 판단하므로, 답변에는 반드시 '판단_근거'에 있는 구체적 변화율/배율을 인용하세요. 변화율 필드는 이름 그대로 '퍼센트'이지 '배수'가 아닙니다 - 예를 들어 값이 2.3이면 '2.3배 급등'이 아니라 '2.3% 증가'입니다. 배율이라고 적힌 필드(휴면/이탈위험 고객 수 관련)만 실제 배수입니다. '가장 시급한 문제', '지금 뭐가 문제야' 같은 질문에 사용하세요.",
         "input_schema": {"type": "object", "properties": {
             "start_date": {"type": "string", "description": "조회 시작일 (YYYY-MM-DD)"},
             "end_date": {"type": "string", "description": "조회 종료일 (YYYY-MM-DD)"},
@@ -509,6 +678,8 @@ CHATBOT_TOOLS = [
 def _describe_tool_call(name: str, tool_input: dict) -> str:
     info = TOOL_LABELS.get(name, {"label": name})
     label = info["label"]
+    if "dimension" in tool_input and "value" in tool_input:
+        label = f"{label} ({tool_input['dimension']}: {tool_input['value']})"
     if "current_start" in tool_input:
         period = f"{tool_input.get('current_start', '')}~{tool_input.get('current_end', '')} vs {tool_input.get('compare_start', '')}~{tool_input.get('compare_end', '')}"
     elif "start_date" in tool_input:
@@ -544,6 +715,15 @@ def _build_system_prompt(company: str) -> str:
    그 목록은 이미 화면 차트에 그대로 나와 있습니다. 대신 1위와 2위의 격차, 눈에 띄게
    쏠린 부분, 또는 그로부터 나오는 시사점 위주로 2~3문장 안에 답하세요.
 
+   사용자 메시지가 "[차트이름 중 항목]"처럼 대괄호로 시작하면, 차트에서 특정 항목을
+   클릭해서 넘어온 질문입니다. 그 항목이 성별/연령대/페르소나/세그먼트 같은 고객
+   속성이면 get_segment_deep_dive를 호출하세요 - 그 항목의 비중(%)은 이미 화면에
+   보이니 절대 반복하지 말고, 그 도구가 주는 화면에 없는 교차 정보(카테고리·채널
+   쏠림, 나머지 고객 대비 AOV 차이 등) 위주로 답하세요. 이때도 소제목(###)이나
+   구분선(---) 없이, 아래 "규칙"의 2~4문장·간결함 원칙을 그대로 지키세요 - 정보가
+   여러 개라고 리포트처럼 늘어놓지 말고, 그 중 가장 눈에 띄는 1~2개만 골라 압축해서
+   말하세요.
+
 2. 진단/분석형 (예: "왜 그래?", "무슨 문제야?")
    → 반드시 아래 3단계 구조를 그대로 사용해서 답하세요 (각 단계를 굵게 표시된 소제목으로 구분):
    **결과:** 무엇이 어떻게 됐는지 핵심 수치로 1문장.
@@ -569,6 +749,7 @@ def _build_system_prompt(company: str) -> str:
 
 규칙:
 - 답변은 한국어 존댓말(합니다체)로, 2~4문장 정도로 간결하게 작성하세요.
+- 소제목(### 등)이나 구분선(---)을 쓰지 말고, 자연스럽게 이어지는 문단으로만 답하세요 - 정보가 여러 갈래라도 보고서처럼 나열하지 말고 가장 중요한 것 위주로 압축하세요.
 - 핵심 수치는 **마크다운 볼드체**로 강조하세요.
 - 도구 호출 결과에 없는 정보는 추측하지 마세요.
 - 숫자를 말할 때는 반드시 비교 기준과 함께 말하세요. 도구가 반환한 값에 이미
@@ -578,6 +759,10 @@ def _build_system_prompt(company: str) -> str:
 - 사용자가 물어본 지표만 답하세요. 도구는 여러 지표를 한 번에 반환하지만, 요청하지
   않은 지표는 먼저 나서서 언급하지 마세요.
 - 새 질문에 기간이 명시돼 있지 않으면 전체 기간({min_date} ~ {max_date})을 기본값으로 쓰세요.
+
+톤 예시 (분량을 늘리라는 뜻이 아니라 - 같은 길이에서 어떻게 다르게 말할지 참고용):
+- 나쁜 예: "여성이 61%로 남성보다 많습니다. 여성 고객을 고려한 마케팅이 필요합니다." (화면에 이미 보이는 숫자를 반복하고, "고려하세요"는 아무 행동도 지시하지 않는 필러입니다.)
+- 좋은 예: "여성은 '보기'는 많이 보는데, 정작 구매 전환은 30대 남성이 더 높아요 - 트래픽보다 전환 최적화가 더 급한 포인트일 수 있어요." (화면엔 없는 교차 정보 + 구체적 시사점.)
 """
 
 
