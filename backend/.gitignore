@@ -4,3 +4,4 @@ __pycache__/
 *.log
 data_store/
 serviceAccountKey.json
+serviceAccountKey.b64.txt
