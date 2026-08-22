@@ -3,27 +3,24 @@ A/B 테스트 생성/조회. campaign_history/campaign_sends와 같은 이유로
 구분 없이 ATHLEPA 전용으로 운영된다. 실제 발송 연동(SendGrid 등) 전이라, 그룹별
 오픈/클릭/전환 수는 campaign_sends의 채널별 실제 히스토리 비율을 기반으로
 시뮬레이션한다 (라이브 트래킹이 아니라는 걸 프론트에서 항상 같이 안내한다).
-테스트 목록은 파일(JSON)에 영구 저장한다 - Streamlit 버전이 data/ab_tests.csv에
-저장하던 것과 같은 역할.
+테스트 목록은 Supabase의 ab_tests 테이블에 저장한다 - 로컬 파일(JSON)로 저장하면
+Render처럼 파일시스템이 임시적인 배포 환경에서 서버가 재시작될 때마다 기록이
+사라지기 때문 (campaign_history/campaign_sends와 겹치지 않게 별도 테이블 사용).
 """
 
-import json
 import math
-import os
 import random
 import uuid
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 import auth
+import data as data_module
 import performance
 
 router = APIRouter()
-
-_STORE_PATH = Path(__file__).parent / "data_store" / "ab_tests.json"
 
 SEGMENT_OPTIONS = ["전체", "신규 탐색자", "충동 구매자", "할인 구매자", "브랜드 충성 고객", "이탈 위험 고객", "휴면 고객"]
 
@@ -40,16 +37,15 @@ METRIC_COUNT_FIELD = {"open": "opens", "click": "clicks", "conversion": "convers
 
 
 def _load_store() -> list[dict]:
-    if not _STORE_PATH.exists():
-        return []
-    with open(_STORE_PATH, encoding="utf-8") as f:
-        return json.load(f)
+    return data_module._get_client().table("ab_tests").select("*").execute().data
 
 
-def _save_store(tests: list[dict]) -> None:
-    _STORE_PATH.parent.mkdir(exist_ok=True)
-    with open(_STORE_PATH, "w", encoding="utf-8") as f:
-        json.dump(tests, f, ensure_ascii=False, indent=2)
+def _insert_test(test: dict) -> None:
+    data_module._get_client().table("ab_tests").insert(test).execute()
+
+
+def _update_test(test_id: str, patch: dict) -> None:
+    data_module._get_client().table("ab_tests").update(patch).eq("test_id", test_id).execute()
 
 
 def _target_size(segment: str) -> int:
@@ -251,9 +247,7 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         "winner_group_id": None, "groups": group_rows,
     }
 
-    tests = _load_store()
-    tests.append(test)
-    _save_store(tests)
+    _insert_test(test)
     return _enrich_test(test)
 
 
@@ -266,8 +260,9 @@ def end_ab_test(test_id: str, req: EndTestRequest, session: dict = Depends(auth.
     if not any(g["group_id"] == req.winner_group_id for g in test["groups"]):
         raise HTTPException(status_code=400, detail="유효하지 않은 winner 그룹이에요.")
 
+    ended_at = datetime.now().isoformat()
+    _update_test(test_id, {"status": "완료", "winner_group_id": req.winner_group_id, "ended_at": ended_at})
     test["status"] = "완료"
     test["winner_group_id"] = req.winner_group_id
-    test["ended_at"] = datetime.now().isoformat()
-    _save_store(tests)
+    test["ended_at"] = ended_at
     return _enrich_test(test)
