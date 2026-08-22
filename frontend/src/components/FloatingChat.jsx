@@ -146,10 +146,19 @@ function Message({ idx, msg, isLast, onQuickReply }) {
 }
 
 export default function FloatingChat() {
-  const { isOpen, setIsOpen, messages, loading, send, askQuestion, seenCount, executionMode, setExecutionMode } = useChat();
-  const [input, setInput] = useState("");
+  const {
+    isOpen, setIsOpen, messages, loading, send, askQuestion, seenCount, executionMode, setExecutionMode,
+    draftInput, setDraftInput,
+  } = useChat();
+  const input = draftInput;
+  const setInput = setDraftInput;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && draftInput && inputRef.current) inputRef.current.focus();
+  }, [isOpen, draftInput]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -239,10 +248,16 @@ export default function FloatingChat() {
 
           <div className="flex items-center gap-1.5 border-t border-violet-100 p-2.5">
             <input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="궁금한 걸 물어보세요"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSend();
+                // Tab으로도 보낼 수 있게 - 차트에서 채워준 질문을 확인하고 바로 보내는 흐름을 위함.
+                // 입력이 비어있을 땐 원래 Tab 동작(포커스 이동)을 그대로 둔다.
+                if (e.key === "Tab" && input.trim()) { e.preventDefault(); handleSend(); }
+              }}
+              placeholder="궁금한 걸 물어보세요 (Tab으로 바로 전송)"
               className="flex-1 rounded-md border border-violet-100 bg-violet-50/30 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
             />
             <button

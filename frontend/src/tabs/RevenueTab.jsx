@@ -41,14 +41,14 @@ export default function RevenueTab() {
         </ResponsiveContainer>
       </Card>
 
-      <Card title="세그먼트별 매출" askQuestion="세그먼트별 매출을 분석해줘">
-        <RankedBars data={breakdown.segment} formatValue={fmtWon} colorMap={SEGMENT_COLORS} />
+      <Card title="세그먼트별 매출">
+        <RankedBars data={breakdown.segment} formatValue={fmtWon} colorMap={SEGMENT_COLORS} chartLabel="세그먼트별 매출" />
       </Card>
-      <Card title="유입 채널별 매출" askQuestion="채널별 매출을 분석해줘">
-        <RankedBars data={breakdown.channel} formatValue={fmtWon} />
+      <Card title="유입 채널별 매출">
+        <RankedBars data={breakdown.channel} formatValue={fmtWon} chartLabel="유입 채널별 매출" />
       </Card>
-      <Card title="카테고리별 매출" className="lg:col-span-2" askQuestion="카테고리별 매출을 분석해줘">
-        <RankedBars data={breakdown.category} formatValue={fmtWon} />
+      <Card title="카테고리별 매출" className="lg:col-span-2">
+        <RankedBars data={breakdown.category} formatValue={fmtWon} chartLabel="카테고리별 매출" />
       </Card>
     </div>
   );

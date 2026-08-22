@@ -24,13 +24,13 @@ export default function OverviewTab() {
         <p className="mt-0.5 text-[11px] text-slate-400">구매 여부와 무관하게 방문 등 활동이 있었던 고객</p>
       </Card>
       <Card title="성별 분포">
-        <GenderDonut male={profile.gender.male} female={profile.gender.female} />
+        <GenderDonut male={profile.gender.male} female={profile.gender.female} chartLabel="성별 분포" />
       </Card>
       <Card title="연령대 분포">
-        <RankedBars data={profile.age} formatValue={(v) => `${v.toLocaleString()}명`} />
+        <RankedBars data={profile.age} formatValue={(v) => `${v.toLocaleString()}명`} chartLabel="연령대 분포" />
       </Card>
-      <Card title="페르소나별 고객 수" className="lg:col-span-2" askQuestion="페르소나별 고객 수를 분석해줘">
-        <RankedBars data={profile.persona} formatValue={(v) => `${v.toLocaleString()}명`} />
+      <Card title="페르소나별 고객 수" className="lg:col-span-2">
+        <RankedBars data={profile.persona} formatValue={(v) => `${v.toLocaleString()}명`} chartLabel="페르소나별 고객 수" />
       </Card>
     </div>
   );

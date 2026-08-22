@@ -17,6 +17,10 @@ export function ChatProvider({ children }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [seenCount, setSeenCount] = useState(0);
+  // 채팅창을 열고 입력창에 질문을 "채워만" 두는 용도 (바로 전송하는 askQuestion과 달리
+  // 사용자가 확인/수정 후 Tab이나 Enter로 직접 보내게 함) - 차트의 특정 항목(예: 성별
+  // 분포의 "여성" 막대)을 클릭했을 때, 그 항목만 콕 집은 구체적인 질문을 미리 채워준다.
+  const [draftInput, setDraftInput] = useState("");
   const [executionMode, setExecutionModeState] = useState(() => localStorage.getItem(EXECUTION_MODE_KEY) || "suggest"); // "suggest" | "auto"
   const setExecutionMode = useCallback((mode) => {
     localStorage.setItem(EXECUTION_MODE_KEY, mode);
@@ -59,6 +63,13 @@ export function ChatProvider({ children }) {
     send(question);
   }, [send]);
 
+  // 카드 전체가 아니라 차트 안의 특정 항목(막대 하나, 도넛 조각 하나 등)을 클릭했을 때 쓴다.
+  // 바로 보내지 않고 입력창에 채워서, 사용자가 그대로 보내거나 다듬을 수 있게 한다.
+  const proposeQuestion = useCallback((question) => {
+    setIsOpen(true);
+    setDraftInput(question);
+  }, []);
+
   const setFeedback = useCallback((idx, type) => {
     setMessages((prev) => prev.map((m, i) => (i === idx ? { ...m, feedback: m.feedback === type ? null : type } : m)));
   }, []);
@@ -87,7 +98,8 @@ export function ChatProvider({ children }) {
   }, [messages, updateProposalDraft]);
 
   const value = {
-    isOpen, setIsOpen, messages, loading, send, askQuestion,
+    isOpen, setIsOpen, messages, loading, send, askQuestion, proposeQuestion,
+    draftInput, setDraftInput,
     seenCount, executionMode, setExecutionMode,
     setFeedback, updateProposalDraft, executeProposal,
   };
