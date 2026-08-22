@@ -6,3 +6,4 @@ python-dotenv
 anthropic
 bcrypt
 sendgrid
+firebase-admin

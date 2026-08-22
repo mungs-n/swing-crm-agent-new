@@ -414,15 +414,15 @@ export default function CampaignWizard({ onCancel, onCreated, initialSegment, in
           )}
 
           <p className="mt-2 text-[9px] text-slate-300">
-            전체/예약/반복 발송은 아직 실제 발송 연동 전이라, 캠페인 기록만 생성되고 실제 메시지는 나가지 않아요 (실험 버전). 이메일 테스트 발송만 실제로 나가요.
+            전체/예약/반복 발송은 아직 실제 발송 연동 전이라, 캠페인 기록만 생성되고 실제 메시지는 나가지 않아요 (실험 버전). 이메일·웹 푸시 테스트 발송만 실제로 나가요.
           </p>
         </Block>
 
         <Block title="테스트 발송">
           <p className="mb-2 text-[10px] text-slate-400">
-            {channel === "email"
-              ? "실제 이메일이 발송돼요 (SendGrid 연동됨)."
-              : "카카오톡/문자/웹 푸시는 아직 발송 연동 전이라 기록만 남아요."}
+            {channel === "email" && "실제 이메일이 발송돼요 (SendGrid 연동됨)."}
+            {channel === "webpush" && "실제 웹 푸시가 발송돼요 (FCM 연동됨) - 수신자 칸에 FCM 등록 토큰을 입력하세요."}
+            {channel !== "email" && channel !== "webpush" && "카카오톡/문자는 아직 발송 연동 전이라 기록만 남아요."}
           </p>
           <div className="flex gap-1.5">
             <input

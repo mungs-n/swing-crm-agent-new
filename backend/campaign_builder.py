@@ -26,6 +26,7 @@ from pydantic import BaseModel
 import auth
 import data as data_module
 import email_sender
+import push_sender
 from utils.rfm import calculate_rfm, assign_segment
 
 router = APIRouter()
@@ -288,6 +289,12 @@ def test_send_campaign(req: TestSendRequest, session: dict = Depends(auth.get_se
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"이메일 발송에 실패했어요: {e}")
         status = f"테스트 발송 완료 ({channel_label}, SendGrid {status_code})"
+    elif req.channel == "webpush":
+        try:
+            push_sender.send_web_push(receiver, req.title.strip(), req.body.strip())
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"웹 푸시 발송에 실패했어요: {e}")
+        status = f"테스트 발송 완료 ({channel_label}, FCM)"
     else:
         status = f"테스트 발송 ({channel_label}) - 실제 발송 연동 전이라 기록만 남겨요."
 
