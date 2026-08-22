@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import ChannelPreview from "../components/ChannelPreview";
 import { buildRecipeBanner } from "../utils/recipeBanner";
+import { requestFcmToken } from "../firebase";
 
 const SEGMENT_OPTIONS = [
   "신규 탐색자", "충동 구매자", "할인 구매자", "브랜드 충성 고객", "이탈 위험 고객", "휴면 고객",
@@ -72,6 +73,21 @@ export default function CampaignWizard({ onCancel, onCreated, initialSegment, in
   const [testReceiver, setTestReceiver] = useState("");
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState("");
+  const [fcmLoading, setFcmLoading] = useState(false);
+
+  async function handleGetFcmToken() {
+    setFcmLoading(true);
+    setTestResult("");
+    try {
+      const token = await requestFcmToken();
+      setTestReceiver(token);
+      setTestResult("이 브라우저의 알림 토큰을 가져왔어요. 테스트 발송을 누르면 이 브라우저로 실제 알림이 와요.");
+    } catch (e) {
+      setTestResult(e.message || "토큰을 가져오지 못했어요.");
+    } finally {
+      setFcmLoading(false);
+    }
+  }
 
   useEffect(() => {
     setTargetSize(null);
@@ -424,6 +440,15 @@ export default function CampaignWizard({ onCancel, onCreated, initialSegment, in
             {channel === "webpush" && "실제 웹 푸시가 발송돼요 (FCM 연동됨) - 수신자 칸에 FCM 등록 토큰을 입력하세요."}
             {channel !== "email" && channel !== "webpush" && "카카오톡/문자는 아직 발송 연동 전이라 기록만 남아요."}
           </p>
+          {channel === "webpush" && (
+            <button
+              onClick={handleGetFcmToken}
+              disabled={fcmLoading}
+              className="mb-1.5 w-fit rounded-md border border-dashed border-violet-300 px-2.5 py-1 text-[10px] font-medium text-violet-500 transition hover:bg-violet-50 disabled:opacity-50"
+            >
+              {fcmLoading ? "토큰 요청 중..." : "🔔 이 브라우저 알림 토큰 가져오기"}
+            </button>
+          )}
           <div className="flex gap-1.5">
             <input
               value={testReceiver}
