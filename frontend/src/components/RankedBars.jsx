@@ -33,7 +33,7 @@ export default function RankedBars({ data, formatValue = (v) => v.toLocaleString
         return (
           <button
             key={d.name}
-            onClick={(e) => { e.stopPropagation(); proposeQuestion(`[${chartLabel} 중 ${d.name}] 이 항목에 대해 자세히 분석해줘`); }}
+            onClick={(e) => { e.stopPropagation(); proposeQuestion(`[${chartLabel} 중 ${d.name}] `); }}
             className="group flex items-center gap-2 rounded transition hover:bg-violet-50"
           >
             {row}

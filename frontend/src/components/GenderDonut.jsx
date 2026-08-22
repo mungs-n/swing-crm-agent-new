@@ -12,7 +12,7 @@ export default function GenderDonut({ male, female, chartLabel }) {
 
   function select(name) {
     if (!chartLabel) return;
-    proposeQuestion(`[${chartLabel} 중 ${name}] 이 항목에 대해 자세히 분석해줘`);
+    proposeQuestion(`[${chartLabel} 중 ${name}] `);
   }
 
   return (
