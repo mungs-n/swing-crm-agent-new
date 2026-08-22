@@ -65,19 +65,23 @@ async function del(path) {
   return data;
 }
 
+function withRange(path, startDate, endDate) {
+  return startDate && endDate ? `${path}?start_date=${startDate}&end_date=${endDate}` : path;
+}
+
 export const api = {
   UnauthorizedError,
   clearCache,
-  kpi: (startDate, endDate) => get(`/api/kpi${startDate && endDate ? `?start_date=${startDate}&end_date=${endDate}` : ""}`),
-  gmvTrend: () => get("/api/gmv-trend"),
-  revenueBreakdown: () => get("/api/revenue-breakdown"),
-  rfmScatter: () => get("/api/rfm-scatter"),
-  funnel: () => get("/api/funnel"),
+  kpi: (startDate, endDate) => get(withRange("/api/kpi", startDate, endDate)),
+  gmvTrend: (startDate, endDate) => get(withRange("/api/gmv-trend", startDate, endDate)),
+  revenueBreakdown: (startDate, endDate) => get(withRange("/api/revenue-breakdown", startDate, endDate)),
+  rfmScatter: (startDate, endDate) => get(withRange("/api/rfm-scatter", startDate, endDate)),
+  funnel: (startDate, endDate) => get(withRange("/api/funnel", startDate, endDate)),
   repeatFunnel: () => get("/api/repeat-funnel"),
-  cohort: (startDate, endDate) => get(`/api/cohort${startDate && endDate ? `?start_date=${startDate}&end_date=${endDate}` : ""}`),
-  customerProfile: () => get("/api/customer-profile"),
+  cohort: (startDate, endDate) => get(withRange("/api/cohort", startDate, endDate)),
+  customerProfile: (startDate, endDate) => get(withRange("/api/customer-profile", startDate, endDate)),
   campaigns: () => get("/api/campaigns"),
-  performance: (startDate, endDate) => get(`/api/performance${startDate && endDate ? `?start_date=${startDate}&end_date=${endDate}` : ""}`),
+  performance: (startDate, endDate) => get(withRange("/api/performance", startDate, endDate)),
   abTests: () => get("/api/ab-tests"),
   abTestSegmentSize: (segment) => get(`/api/ab-tests/segment-size?segment=${encodeURIComponent(segment)}`),
   createAbTest: (payload) => post("/api/ab-tests", payload),

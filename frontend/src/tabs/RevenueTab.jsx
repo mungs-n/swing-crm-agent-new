@@ -13,14 +13,17 @@ function fmtWon(v) {
   return v >= 10000 ? `₩${(v / 10000).toFixed(0)}만` : `₩${v.toLocaleString()}`;
 }
 
-export default function RevenueTab() {
+export default function RevenueTab({ range }) {
   const [breakdown, setBreakdown] = useState(null);
   const [trend, setTrend] = useState([]);
+  const start = range?.start;
+  const end = range?.end;
 
   useEffect(() => {
-    api.revenueBreakdown().then(setBreakdown);
-    api.gmvTrend().then((data) => setTrend(data.map((d) => ({ ...d, gmvM: d.gmv / 1_000_000 }))));
-  }, []);
+    setBreakdown(null);
+    api.revenueBreakdown(start, end).then(setBreakdown);
+    api.gmvTrend(start, end).then((data) => setTrend(data.map((d) => ({ ...d, gmvM: d.gmv / 1_000_000 }))));
+  }, [start, end]);
 
   if (!breakdown) return <div className="py-12 text-center text-xs text-slate-400">데이터를 불러오는 중...</div>;
 

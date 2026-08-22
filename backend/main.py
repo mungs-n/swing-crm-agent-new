@@ -114,10 +114,19 @@ def get_kpi(start_date: str | None = None, end_date: str | None = None, session:
     }
 
 
+def _filter_by_date(df, col, start_date, end_date):
+    if df.empty or not start_date or not end_date:
+        return df
+    start_ts = pd.Timestamp(start_date)
+    end_ts = pd.Timestamp(end_date) + timedelta(days=1) - timedelta(seconds=1)
+    return df[(df[col] >= start_ts) & (df[col] <= end_ts)]
+
+
 @app.get("/api/gmv-trend")
-def get_gmv_trend(session: dict = Depends(auth.get_session)):
+def get_gmv_trend(start_date: str | None = None, end_date: str | None = None, session: dict = Depends(auth.get_session)):
     dataset_source = session["dataset_source"]
     orders, _ = data.load(dataset_source)
+    orders = _filter_by_date(orders, "order_date", start_date, end_date)
     if orders.empty:
         return []
     monthly = orders.set_index("order_date").resample("MS")["total_amount"].sum()
@@ -125,9 +134,10 @@ def get_gmv_trend(session: dict = Depends(auth.get_session)):
 
 
 @app.get("/api/revenue-breakdown")
-def get_revenue_breakdown(session: dict = Depends(auth.get_session)):
+def get_revenue_breakdown(start_date: str | None = None, end_date: str | None = None, session: dict = Depends(auth.get_session)):
     dataset_source = session["dataset_source"]
     orders, _ = data.load(dataset_source)
+    orders = _filter_by_date(orders, "order_date", start_date, end_date)
     users = data.load_users(dataset_source)
     if orders.empty:
         return {"segment": [], "channel": [], "category": []}
@@ -154,9 +164,10 @@ def get_revenue_breakdown(session: dict = Depends(auth.get_session)):
 
 
 @app.get("/api/rfm-scatter")
-def get_rfm_scatter(session: dict = Depends(auth.get_session)):
+def get_rfm_scatter(start_date: str | None = None, end_date: str | None = None, session: dict = Depends(auth.get_session)):
     dataset_source = session["dataset_source"]
     orders, _ = data.load(dataset_source)
+    orders = _filter_by_date(orders, "order_date", start_date, end_date)
     if orders.empty:
         return []
     rfm = assign_segment(calculate_rfm(orders.copy()))
@@ -170,9 +181,10 @@ def get_rfm_scatter(session: dict = Depends(auth.get_session)):
 
 
 @app.get("/api/funnel")
-def get_funnel(session: dict = Depends(auth.get_session)):
+def get_funnel(start_date: str | None = None, end_date: str | None = None, session: dict = Depends(auth.get_session)):
     dataset_source = session["dataset_source"]
     _, events = data.load(dataset_source)
+    events = _filter_by_date(events, "timestamp", start_date, end_date)
     stages = [("page_view", "방문"), ("product_view", "상품조회"), ("add_to_cart", "장바구니"), ("purchase", "구매")]
     if events.empty:
         return [{"label": label, "value": 0} for _, label in stages]
@@ -264,14 +276,21 @@ def get_cohort(start_date: str | None = None, end_date: str | None = None, sessi
 
 
 @app.get("/api/customer-profile")
-def get_customer_profile(session: dict = Depends(auth.get_session)):
+def get_customer_profile(start_date: str | None = None, end_date: str | None = None, session: dict = Depends(auth.get_session)):
     dataset_source = session["dataset_source"]
     users = data.load_users(dataset_source)
     _, events = data.load(dataset_source)
+    events = _filter_by_date(events, "timestamp", start_date, end_date)
     if users.empty:
         return {"active_count": 0, "gender": {"male": 0, "female": 0}, "age": [], "persona": []}
 
     active_count = int(events["user_id"].nunique()) if not events.empty else 0
+
+    # 기간이 지정됐으면, 성별/연령대/페르소나 분포도 "그 기간에 활동한 고객"으로 한정한다
+    # (안 그러면 위 활동 고객 수는 기간별로 바뀌는데 아래 분포는 항상 전체 고객 기준이라 안 맞아 보인다).
+    if start_date and end_date and not events.empty:
+        active_ids = set(events["user_id"].unique())
+        users = users[users["user_id"].isin(active_ids)]
 
     gender_counts = users["gender"].value_counts() if "gender" in users.columns else pd.Series(dtype=int)
     gender = {"male": int(gender_counts.get("M", 0)), "female": int(gender_counts.get("F", 0))}

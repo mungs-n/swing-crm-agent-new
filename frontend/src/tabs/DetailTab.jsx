@@ -12,8 +12,9 @@ export default function DetailTab({ range }) {
   const end = range?.end;
 
   useEffect(() => {
-    api.rfmScatter().then(setRfm);
+    setRfm(null);
     setCohort(null);
+    api.rfmScatter(start, end).then(setRfm);
     api.cohort(start, end).then(setCohort);
   }, [start, end]);
 

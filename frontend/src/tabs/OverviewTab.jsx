@@ -5,12 +5,15 @@ import RankedBars from "../components/RankedBars";
 import GenderDonut from "../components/GenderDonut";
 import RawDataButton from "../components/RawDataButton";
 
-export default function OverviewTab() {
+export default function OverviewTab({ range }) {
   const [profile, setProfile] = useState(null);
+  const start = range?.start;
+  const end = range?.end;
 
   useEffect(() => {
-    api.customerProfile().then(setProfile);
-  }, []);
+    setProfile(null);
+    api.customerProfile(start, end).then(setProfile);
+  }, [start, end]);
 
   if (!profile) return <div className="py-12 text-center text-xs text-slate-400">데이터를 불러오는 중...</div>;
 
