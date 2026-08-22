@@ -18,7 +18,7 @@ PERSONA_KR = {
 }
 AGE_LABELS = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
 
-_executor = ThreadPoolExecutor(max_workers=20)
+_executor = ThreadPoolExecutor(max_workers=8)
 _thread_local = threading.local()
 
 PAGE_SIZE = 1000
@@ -80,7 +80,10 @@ def _cached(key: str, loader):
 def load(dataset_source: str):
     def loader():
         orders = _fetch_all("orders", dataset_source)
-        events = _fetch_all("events", dataset_source)
+        # events는 13만 행 이상이라 컬럼을 전부(*) 가져오면 메모리를 크게 잡아먹는다
+        # (Render 무료 플랜 512MB에서 배포 직후 이 fetch 때문에 OOM으로 죽는 걸 확인함).
+        # 실제로 쓰는 컬럼은 이 4개뿐이라(raw_data.py의 원본 데이터 보기 포함) 여기서만 선택해서 가져온다.
+        events = _fetch_all("events", dataset_source, columns="user_id,session_id,event_type,timestamp")
         if not orders.empty:
             orders["order_date"] = pd.to_datetime(orders["order_date"], format="ISO8601")
         if not events.empty:
