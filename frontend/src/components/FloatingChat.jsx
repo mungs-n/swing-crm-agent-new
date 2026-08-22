@@ -148,7 +148,7 @@ function Message({ idx, msg, isLast, onQuickReply }) {
 export default function FloatingChat() {
   const {
     isOpen, setIsOpen, messages, loading, send, askQuestion, seenCount, executionMode, setExecutionMode,
-    draftInput, setDraftInput,
+    draftInput, setDraftInput, ghostSuggestion, setGhostSuggestion,
   } = useChat();
   const input = draftInput;
   const setInput = setDraftInput;
@@ -157,8 +157,8 @@ export default function FloatingChat() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen && draftInput && inputRef.current) inputRef.current.focus();
-  }, [isOpen, draftInput]);
+    if (isOpen && ghostSuggestion && inputRef.current) inputRef.current.focus();
+  }, [isOpen, ghostSuggestion]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -168,7 +168,17 @@ export default function FloatingChat() {
     const question = (q ?? input).trim();
     if (!question || loading) return;
     setInput("");
+    setGhostSuggestion("");
     send(question);
+  };
+
+  // 회색 추천 문구가 떠있고 아직 아무것도 안 쳤을 때 Tab/Enter를 누르면, 그 추천을
+  // 그대로 전송한다. 뭔가 타이핑을 시작하면(=input이 비어있지 않으면) 이 분기를
+  // 타지 않으니 추천은 자연히 무시되고 원래 입력이 그대로 나간다.
+  const acceptGhost = () => {
+    if (!ghostSuggestion || input) return false;
+    handleSend(ghostSuggestion);
+    return true;
   };
 
   const unseen = messages.length - seenCount;
@@ -247,19 +257,29 @@ export default function FloatingChat() {
           </div>
 
           <div className="flex items-center gap-1.5 border-t border-violet-100 p-2.5">
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSend();
-                // Tab으로도 보낼 수 있게 - 차트에서 채워준 질문을 확인하고 바로 보내는 흐름을 위함.
-                // 입력이 비어있을 땐 원래 Tab 동작(포커스 이동)을 그대로 둔다.
-                if (e.key === "Tab" && input.trim()) { e.preventDefault(); handleSend(); }
-              }}
-              placeholder="궁금한 걸 물어보세요 (Tab으로 바로 전송)"
-              className="flex-1 rounded-md border border-violet-100 bg-violet-50/30 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
-            />
+            <div className="relative flex-1">
+              {ghostSuggestion && !input && (
+                <div className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-md px-2.5 py-1.5 text-xs text-slate-400">
+                  <span className="truncate">{ghostSuggestion}</span>
+                  <span className="ml-1.5 shrink-0 rounded border border-slate-300 px-1 text-[9px] text-slate-400">Tab</span>
+                </div>
+              )}
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => { setInput(e.target.value); if (e.target.value) setGhostSuggestion(""); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Tab" || e.key === "Enter") {
+                    if (acceptGhost()) { e.preventDefault(); return; }
+                  }
+                  if (e.key === "Enter") handleSend();
+                  // Tab으로도 직접 입력한 걸 보낼 수 있게 (추천 문구가 없을 때).
+                  if (e.key === "Tab" && input.trim()) { e.preventDefault(); handleSend(); }
+                }}
+                placeholder={ghostSuggestion ? "" : "궁금한 걸 물어보세요 (Tab으로 바로 전송)"}
+                className="relative w-full rounded-md border border-violet-100 bg-violet-50/30 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
+              />
+            </div>
             <button
               onClick={() => handleSend()}
               disabled={loading}

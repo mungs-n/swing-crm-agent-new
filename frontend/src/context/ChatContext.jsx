@@ -17,10 +17,12 @@ export function ChatProvider({ children }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [seenCount, setSeenCount] = useState(0);
-  // 채팅창을 열고 입력창에 질문을 "채워만" 두는 용도 (바로 전송하는 askQuestion과 달리
-  // 사용자가 확인/수정 후 Tab이나 Enter로 직접 보내게 함) - 차트의 특정 항목(예: 성별
-  // 분포의 "여성" 막대)을 클릭했을 때, 그 항목만 콕 집은 구체적인 질문을 미리 채워준다.
   const [draftInput, setDraftInput] = useState("");
+  // 차트의 특정 항목(예: 성별 분포의 "여성" 막대)을 클릭했을 때 쓰는 "추천 질문".
+  // 바로 입력창에 채워 넣지 않고 회색 글씨로만 보여주다가, 사용자가 Tab/Enter를
+  // 누르면 그대로 전송하고, 뭔가 직접 타이핑을 시작하면 추천은 사라지고 자기가
+  // 쓴 내용이 나간다 - "추천이지 강요가 아니다"는 느낌을 주기 위함.
+  const [ghostSuggestion, setGhostSuggestion] = useState("");
   const [executionMode, setExecutionModeState] = useState(() => localStorage.getItem(EXECUTION_MODE_KEY) || "suggest"); // "suggest" | "auto"
   const setExecutionMode = useCallback((mode) => {
     localStorage.setItem(EXECUTION_MODE_KEY, mode);
@@ -64,10 +66,11 @@ export function ChatProvider({ children }) {
   }, [send]);
 
   // 카드 전체가 아니라 차트 안의 특정 항목(막대 하나, 도넛 조각 하나 등)을 클릭했을 때 쓴다.
-  // 바로 보내지 않고 입력창에 채워서, 사용자가 그대로 보내거나 다듬을 수 있게 한다.
+  // 실제 입력값을 바꾸지 않고 "추천 문구"만 회색으로 띄운다 - FloatingChat이 렌더링.
   const proposeQuestion = useCallback((question) => {
     setIsOpen(true);
-    setDraftInput(question);
+    setDraftInput("");
+    setGhostSuggestion(question);
   }, []);
 
   const setFeedback = useCallback((idx, type) => {
@@ -99,7 +102,7 @@ export function ChatProvider({ children }) {
 
   const value = {
     isOpen, setIsOpen, messages, loading, send, askQuestion, proposeQuestion,
-    draftInput, setDraftInput,
+    draftInput, setDraftInput, ghostSuggestion, setGhostSuggestion,
     seenCount, executionMode, setExecutionMode,
     setFeedback, updateProposalDraft, executeProposal,
   };

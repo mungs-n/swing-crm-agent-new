@@ -1,9 +1,10 @@
 import { useChat } from "../context/ChatContext";
+import { suggestChartQuestion } from "../utils/chartSuggestions";
 
 const ACCENT = "#7C3AED";
 const PALE = "#C4B5FD";
 
-export default function RankedBars({ data, formatValue = (v) => v.toLocaleString(), colorMap = null, chartLabel }) {
+export default function RankedBars({ data, formatValue = (v) => v.toLocaleString(), colorMap = null, chartLabel, suggestionType = "distribution" }) {
   const { proposeQuestion } = useChat();
   if (!data || data.length === 0) return <p className="text-xs text-slate-400">표시할 데이터가 없습니다.</p>;
   const max = Math.max(...data.map((d) => d.value));
@@ -33,7 +34,7 @@ export default function RankedBars({ data, formatValue = (v) => v.toLocaleString
         return (
           <button
             key={d.name}
-            onClick={(e) => { e.stopPropagation(); proposeQuestion(`[${chartLabel} 중 ${d.name}] `); }}
+            onClick={(e) => { e.stopPropagation(); proposeQuestion(suggestChartQuestion(suggestionType, chartLabel, d.name)); }}
             className="group flex items-center gap-2 rounded transition hover:bg-violet-50"
           >
             {row}

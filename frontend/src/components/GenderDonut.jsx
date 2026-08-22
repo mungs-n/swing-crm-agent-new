@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useChat } from "../context/ChatContext";
+import { suggestChartQuestion } from "../utils/chartSuggestions";
 
 const MALE = "#94A3B8";
 const FEMALE = "#7C3AED";
@@ -12,7 +13,7 @@ export default function GenderDonut({ male, female, chartLabel }) {
 
   function select(name) {
     if (!chartLabel) return;
-    proposeQuestion(`[${chartLabel} 중 ${name}] `);
+    proposeQuestion(suggestChartQuestion("distribution", chartLabel, name));
   }
 
   return (
