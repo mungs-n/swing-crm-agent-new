@@ -1,8 +1,9 @@
 """
-캠페인 관리 / 퍼포먼스 대시보드. campaign_history/campaign_sends는 dataset_source
-구분 없이 ATHLEPA 전용으로 운영되는 테이블이다 (Streamlit 버전과 동일한 설계 -
-실제로 우리가 운영하는 캠페인이라 다른 회사와 공유하지 않는다). 그래서 로그인한
-회사와 무관하게 항상 같은 값을 돌려준다."""
+캠페인 관리 / 퍼포먼스 대시보드. campaign_history/campaign_sends도 다른 테이블과
+마찬가지로 dataset_source로 회사별로 분리한다 - 예전엔 "ATHLEPA 전용"으로 설계돼
+로그인한 회사와 무관하게 항상 같은 값을 돌려줬는데, 실제 회사가 로그인해서
+자기 것이 아닌 ATHLEPA 데이터를 보게 되는 문제가 있어 고쳤다. 기존 athlepa 데이터는
+dataset_source='athlepa'로 백필했다."""
 
 import re
 
@@ -54,19 +55,19 @@ _CREATIVE_NAME_POOL = {
 }
 
 
-def _load_campaign_history() -> pd.DataFrame:
+def _load_campaign_history(dataset_source: str) -> pd.DataFrame:
     def loader():
-        rows = data_module._get_client().table("campaign_history").select("*").execute().data
+        rows = data_module._get_client().table("campaign_history").select("*").eq("dataset_source", dataset_source).execute().data
         if not rows:
             return pd.DataFrame(columns=["campaign_id", "sent_at", "segment", "target_count", "message_summary", "status", "approval_mode"])
         df = pd.DataFrame(rows)
         df["sent_at"] = pd.to_datetime(df["sent_at"], errors="coerce", format="ISO8601")
         return df
 
-    return data_module._cached("campaign_history", loader)
+    return data_module._cached(f"campaign_history:{dataset_source}", loader)
 
 
-def _load_campaign_sends() -> pd.DataFrame:
+def _load_campaign_sends(dataset_source: str) -> pd.DataFrame:
     """campaign_sends는 보통 몇 페이지 안 되는 작은 테이블이라(실측 ~3300행, 4페이지),
     orders/events(수만~10만+행, 100페이지 이상)처럼 스레드풀 병렬 조회를 붙이면 오히려
     스레드 디스패치/커넥션 수립 비용이 왕복 절약분보다 커서 더 느려진다(실측: 병렬
@@ -77,7 +78,10 @@ def _load_campaign_sends() -> pd.DataFrame:
         rows = []
         start = 0
         while True:
-            page = client.table("campaign_sends").select("*").order("id").range(start, start + data_module.PAGE_SIZE - 1).execute().data
+            page = (
+                client.table("campaign_sends").select("*").eq("dataset_source", dataset_source)
+                .order("id").range(start, start + data_module.PAGE_SIZE - 1).execute().data
+            )
             rows.extend(page)
             if len(page) < data_module.PAGE_SIZE:
                 break
@@ -90,7 +94,7 @@ def _load_campaign_sends() -> pd.DataFrame:
         df["channel"] = df["channel"].map(_normalize_channel)
         return df
 
-    return data_module._cached("campaign_sends", loader)
+    return data_module._cached(f"campaign_sends:{dataset_source}", loader)
 
 
 def _cvr(users: int, conversions: int) -> float:
@@ -121,7 +125,7 @@ def get_campaigns(session: dict = Depends(auth.get_session)):
     import campaign_builder
 
     out = []
-    history = _load_campaign_history()
+    history = _load_campaign_history(session["dataset_source"])
     if not history.empty:
         for _, r in history.iterrows():
             out.append({
@@ -169,8 +173,8 @@ def _pct_delta(cur, prev):
 @router.get("/api/performance")
 def get_performance(start_date: str | None = None, end_date: str | None = None, session: dict = Depends(auth.get_session)):
     """퍼포먼스 대시보드: KPI 요약(+ 이전 기간 대비 증감) + 일자별 추이 + 채널별 성과 + 캠페인별 상세."""
-    sends = _load_campaign_sends()
-    history = _load_campaign_history()
+    sends = _load_campaign_sends(session["dataset_source"])
+    history = _load_campaign_history(session["dataset_source"])
     if sends.empty:
         return {
             "kpi": {"sent": 0, "sent_delta": 0, "ctr": 0, "ctr_delta": 0, "cvr": 0, "cvr_delta": 0,
@@ -180,7 +184,7 @@ def get_performance(start_date: str | None = None, end_date: str | None = None, 
         }
 
     delivered_all = sends[sends["delivered"] == True]  # noqa: E712
-    orders, _ = data_module.load("athlepa")
+    orders, _ = data_module.load(session["dataset_source"])
 
     # 필터가 없을 때 보여줄 "전체 발송 이력 범위" (날짜 필터의 선택 가능 범위 안내용, 필터 여부와 무관하게 항상 전체 기준)
     data_range = None

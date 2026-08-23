@@ -59,8 +59,8 @@ def _update_test(test_id: str, patch: dict, dataset_source: str) -> None:
     data_module._get_client().table("ab_tests").update(patch).eq("test_id", test_id).eq("dataset_source", dataset_source).execute()
 
 
-def _target_size(segment: str) -> int:
-    sends = performance._load_campaign_sends()
+def _target_size(segment: str, dataset_source: str) -> int:
+    sends = performance._load_campaign_sends(dataset_source)
     if sends.empty:
         return 0
     if segment == "전체":
@@ -68,10 +68,10 @@ def _target_size(segment: str) -> int:
     return int(sends.loc[sends["segment"] == segment, "user_id"].nunique())
 
 
-def _target_user_ids(segment: str) -> list[str]:
+def _target_user_ids(segment: str, dataset_source: str) -> list[str]:
     """실제 발송 대상 user_id 목록. _target_size와 같은 데이터 소스(campaign_sends)를
     써서 화면에 보이는 타겟 규모와 실제 발송 시도 대상 수가 어긋나지 않게 한다."""
-    sends = performance._load_campaign_sends()
+    sends = performance._load_campaign_sends(dataset_source)
     if sends.empty:
         return []
     if segment != "전체":
@@ -132,10 +132,10 @@ def _apportion(n: int, ratios: list[int]) -> list[int]:
     return counts
 
 
-def _channel_base_rates(channel: str) -> dict:
+def _channel_base_rates(channel: str, dataset_source: str) -> dict:
     """campaign_sends 실제 히스토리에서 이 채널의 평균 오픈율/클릭률/전환율을
     구한다. 데이터가 없으면 그럴듯한 기본값으로 대체한다."""
-    sends = performance._load_campaign_sends()
+    sends = performance._load_campaign_sends(dataset_source)
     defaults = {"open": 0.30, "click": 0.10, "conversion": 0.04}
     if sends.empty:
         return defaults
@@ -155,10 +155,10 @@ def _binomial(n: int, p: float) -> int:
     return sum(1 for _ in range(n) if random.random() < p)
 
 
-def _simulate_group_counts(channel: str, users: int, is_control: bool) -> dict:
+def _simulate_group_counts(channel: str, users: int, is_control: bool, dataset_source: str) -> dict:
     if is_control or users <= 0:
         return {"opens": 0, "clicks": 0, "conversions": 0}
-    base = _channel_base_rates(channel)
+    base = _channel_base_rates(channel, dataset_source)
     jitter = random.uniform(0.75, 1.35)
     opens = _binomial(users, base["open"] * jitter)
     clicks = min(opens, _binomial(users, base["click"] * jitter)) if CHANNEL_META[channel]["click_trackable"] else 0
@@ -241,7 +241,7 @@ class EndTestRequest(BaseModel):
 
 @router.get("/api/ab-tests/segment-size")
 def get_segment_size(segment: str, session: dict = Depends(auth.get_session)):
-    return {"size": _target_size(segment)}
+    return {"size": _target_size(segment, session["dataset_source"])}
 
 
 @router.get("/api/ab-tests")
@@ -280,7 +280,7 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         if not msg.get("title", "").strip():
             raise HTTPException(status_code=400, detail=f"'{g.label}' 그룹의 메시지 제목을 입력해주세요.")
 
-    target_ids = _target_user_ids(req.segment)
+    target_ids = _target_user_ids(req.segment, session["dataset_source"])
     size = len(target_ids)
     ratios = [g.ratio for g in req.groups] + ([req.control_ratio] if req.include_control else [])
     counts = _apportion(size, ratios)
@@ -297,7 +297,7 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
     for i, g in enumerate(req.groups):
         group_id = chr(97 + i)  # a, b, c...
         users = counts[i]
-        stats = _simulate_group_counts(req.channel, users, is_control=False)
+        stats = _simulate_group_counts(req.channel, users, is_control=False, dataset_source=session["dataset_source"])
         msg = req.messages.get(g.label, {})
         title, text, image = msg.get("title", ""), msg.get("text", ""), msg.get("image_data_url")
         dispatch = _dispatch_group(req.channel, id_slices[i], title, text, image, session["dataset_source"])
