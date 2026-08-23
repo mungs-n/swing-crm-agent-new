@@ -94,14 +94,19 @@ def _resolve_receivers(user_ids: list[str], channel: str, dataset_source: str) -
     return dict(zip(subset["user_id"], subset[contact_col]))
 
 
-def _dispatch_group(channel: str, user_ids: list[str], title: str, body: str, image: str | None, dataset_source: str) -> dict | None:
+def _dispatch_group(
+    channel: str, user_ids: list[str], title: str, body: str, image: str | None, dataset_source: str,
+    campaign_id: str, segment: str, campaign_name: str,
+) -> dict | None:
     """email/webpush 그룹에 한해 실제로 email_sender/push_sender를 호출해 발송을
     시도한다. 카카오/문자는 아직 실 연동 전이라 None을 돌려주고 호출부가 시뮬레이션을
-    그대로 쓴다."""
+    그대로 쓴다. 실제로 보낸 만큼은 performance.record_campaign_sends로 성과
+    대시보드에도 남겨서, 이 회사의 진짜 발송 실적이 자동으로 쌓이게 한다."""
     if channel not in ("email", "webpush"):
         return None
     receivers = _resolve_receivers(user_ids, channel, dataset_source)
-    sent = failed = 0
+    sent_ids = []
+    failed = 0
     for uid in user_ids:
         receiver = receivers.get(uid)
         if not receiver:
@@ -111,9 +116,12 @@ def _dispatch_group(channel: str, user_ids: list[str], title: str, body: str, im
                 email_sender.send_email(receiver, title, body)
             else:
                 push_sender.send_web_push(receiver, title, body, image=image)
-            sent += 1
+            sent_ids.append(uid)
         except Exception:
             failed += 1
+    if sent_ids:
+        performance.record_campaign_sends(dataset_source, campaign_id, segment, channel, sent_ids, campaign_name)
+    sent = len(sent_ids)
     return {
         "attempted": len(user_ids), "sent": sent, "failed": failed,
         "skipped_no_contact": len(user_ids) - sent - failed,
@@ -293,6 +301,8 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         id_slices.append(target_ids[cursor:cursor + c])
         cursor += c
 
+    test_id = str(uuid.uuid4())[:8]
+
     group_rows = []
     for i, g in enumerate(req.groups):
         group_id = chr(97 + i)  # a, b, c...
@@ -300,7 +310,11 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         stats = _simulate_group_counts(req.channel, users, is_control=False, dataset_source=session["dataset_source"])
         msg = req.messages.get(g.label, {})
         title, text, image = msg.get("title", ""), msg.get("text", ""), msg.get("image_data_url")
-        dispatch = _dispatch_group(req.channel, id_slices[i], title, text, image, session["dataset_source"])
+        dispatch = _dispatch_group(
+            req.channel, id_slices[i], title, text, image, session["dataset_source"],
+            campaign_id=f"abtest-{test_id}-{group_id}", segment=req.segment,
+            campaign_name=f"{req.segment} · {g.label} 그룹 ({CHANNEL_META[req.channel]['label']})",
+        )
         group_rows.append({
             "group_id": group_id, "label": g.label, "is_control": False, "ratio": g.ratio,
             "users": users, "title": title, "text": text,
@@ -314,7 +328,7 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         })
 
     test = {
-        "test_id": str(uuid.uuid4())[:8],
+        "test_id": test_id,
         "test_name": f"{req.segment} · {CHANNEL_META[req.channel]['label']} 테스트",
         "segment": req.segment, "channel": req.channel, "success_metric": req.success_metric,
         "status": "진행중", "created_at": datetime.now(timezone.utc).isoformat(), "ended_at": None,

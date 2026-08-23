@@ -3,7 +3,15 @@
 저장해서 브라우저가 dataset_source를 직접 못 바꾸게 했는데, 여기서도 같은 신뢰 경계를
 유지한다 - 로그인 성공 시 발급하는 세션 토큰을 서버 메모리에 매핑해두고, 이후 모든
 API 요청은 그 토큰으로만 dataset_source를 알아낸다 (쿼리 파라미터로 dataset_source를
-직접 받지 않는다 - 그러면 클라이언트가 남의 회사 데이터를 그냥 요청할 수 있게 된다)."""
+직접 받지 않는다 - 그러면 클라이언트가 남의 회사 데이터를 그냥 요청할 수 있게 된다).
+
+세션은 메모리(SESSIONS)에 캐시하면서 Supabase의 platform_sessions 테이블에도 같이
+쓴다 - 메모리만 썼다면 Render가 재배포되거나(무료 플랜은 재배포도 잦고, 15분 넘게
+안 쓰이면 프로세스가 잠들었다 새로 뜨기도 한다) 프로세스가 재시작될 때마다 로그인한
+모든 사람이 강제로 로그아웃됐다(A/B 테스트/캠페인 이력이 로컬 파일이라 재배포 때마다
+사라졌던 것과 같은 원인). 매 요청마다 Supabase를 조회하면 느려지니, 메모리에 있으면
+그걸 먼저 쓰고 없을 때만(=이 프로세스가 방금 재시작돼서 아직 모를 때) Supabase에서
+찾아와 메모리에 다시 채워넣는다."""
 
 import os
 import re
@@ -16,9 +24,8 @@ from supabase import create_client
 
 router = APIRouter()
 
-# 세션 토큰 -> 회사 정보. 프로세스가 재시작되면 초기화된다 (실험용이라 Redis 등 영구
-# 저장소는 생략 - 실제 서비스라면 여기를 Redis/DB 세션으로 바꾸면 된다).
 SESSIONS: dict[str, dict] = {}
+_SESSION_FIELDS = ["company_id", "company_name", "dataset_source", "currency", "email"]
 
 
 def _client():
@@ -33,15 +40,34 @@ def verify_password(raw: str, hashed: str) -> bool:
     return bcrypt.checkpw(raw.encode(), hashed.encode())
 
 
+def _store_session(token: str, session: dict) -> None:
+    SESSIONS[token] = session
+    _client().table("platform_sessions").insert({"token": token, **session}).execute()
+
+
+def _drop_session(token: str) -> None:
+    SESSIONS.pop(token, None)
+    _client().table("platform_sessions").delete().eq("token", token).execute()
+
+
 def get_session(authorization: str | None = Header(default=None)) -> dict:
     """다른 라우터(main.py, chatbot.py)가 Depends(get_session)으로 재사용하는 인증
-    의존성. 'Authorization: Bearer <token>' 헤더를 읽어서 세션을 찾고, 없으면 401."""
+    의존성. 'Authorization: Bearer <token>' 헤더를 읽어서 세션을 찾고, 없으면 401.
+    메모리에 없으면(이 프로세스가 방금 재시작됐을 수 있음) Supabase에서 한 번 찾아와
+    메모리에 다시 채워넣은 뒤 돌려준다."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
     token = authorization.removeprefix("Bearer ").strip()
     session = SESSIONS.get(token)
-    if not session:
+    if session:
+        return session
+
+    res = _client().table("platform_sessions").select("*").eq("token", token).limit(1).execute()
+    if not res.data:
         raise HTTPException(status_code=401, detail="세션이 만료됐습니다. 다시 로그인해주세요.")
+    row = res.data[0]
+    session = {k: row.get(k) for k in _SESSION_FIELDS}
+    SESSIONS[token] = session
     return session
 
 
@@ -90,13 +116,13 @@ def login(req: LoginRequest):
 
     company = user["companies"]
     token = secrets.token_urlsafe(32)
-    SESSIONS[token] = {
+    _store_session(token, {
         "company_id": company["company_id"],
         "company_name": company["company_name"],
         "dataset_source": company["dataset_source"],
         "currency": company.get("currency") or "KRW",
         "email": user["email"],
-    }
+    })
     return SessionOut(token=token, **SESSIONS[token])
 
 
@@ -125,7 +151,7 @@ def signup(req: SignupRequest):
     }).execute()
 
     token = secrets.token_urlsafe(32)
-    SESSIONS[token] = {"company_id": company_id, "company_name": req.company_name, "dataset_source": company_id, "currency": req.currency, "email": req.email}
+    _store_session(token, {"company_id": company_id, "company_name": req.company_name, "dataset_source": company_id, "currency": req.currency, "email": req.email})
     return SessionOut(token=token, api_key=api_key, webhook_secret=webhook_secret, **SESSIONS[token])
 
 
@@ -180,5 +206,5 @@ def regenerate_keys(session: dict = Depends(get_session)):
 @router.post("/api/auth/logout")
 def logout(authorization: str | None = Header(default=None)):
     if authorization and authorization.startswith("Bearer "):
-        SESSIONS.pop(authorization.removeprefix("Bearer ").strip(), None)
+        _drop_session(authorization.removeprefix("Bearer ").strip())
     return {"ok": True}

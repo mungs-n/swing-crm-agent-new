@@ -6,6 +6,7 @@
 dataset_source='athlepa'로 백필했다."""
 
 import re
+from datetime import datetime, timezone
 
 import pandas as pd
 from fastapi import APIRouter, Depends
@@ -95,6 +96,28 @@ def _load_campaign_sends(dataset_source: str) -> pd.DataFrame:
         return df
 
     return data_module._cached(f"campaign_sends:{dataset_source}", loader)
+
+
+def record_campaign_sends(dataset_source: str, campaign_id: str, segment: str, channel: str, user_ids: list[str], campaign_name: str) -> None:
+    """실제로 이메일/웹 푸시를 보낸 결과를 campaign_history(캠페인 1건) + campaign_sends
+    (수신자별 1행씩)에 기록해서 성과 대시보드에 실제 발송 실적이 쌓이게 한다.
+    오픈/클릭/전환은 아직 실시간 트래킹 인프라가 없어 항상 비워두고, "보냈다"는
+    사실만 정직하게 남긴다 - A/B 테스트 그룹 발송(ab_test.py)에서 호출한다."""
+    if not user_ids:
+        return
+    client = data_module._get_client()
+    now = datetime.now(timezone.utc).isoformat()
+    client.table("campaign_history").insert({
+        "campaign_id": campaign_id, "dataset_source": dataset_source, "sent_at": now,
+        "segment": segment, "target_count": len(user_ids),
+        "message_summary": f"제목: {campaign_name}", "status": f"실제 발송 완료 ({len(user_ids)}명)",
+    }).execute()
+    rows = [{
+        "send_id": f"{campaign_id}-{uid}", "campaign_id": campaign_id, "user_id": uid,
+        "dataset_source": dataset_source, "segment": segment, "channel": channel,
+        "sent_at": now, "delivered": True,
+    } for uid in user_ids]
+    client.table("campaign_sends").insert(rows).execute()
 
 
 def _cvr(users: int, conversions: int) -> float:
