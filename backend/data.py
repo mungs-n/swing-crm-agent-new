@@ -12,6 +12,7 @@ import pandas as pd
 from supabase import create_client
 
 from dataset_mapping import apply_value_map
+from utils.persona import derive_personas
 
 CHANNEL_KR = {"SNS": "SNS", "search_ad": "검색광고", "direct": "직접유입", "email": "이메일", "referral": "추천"}
 PERSONA_KR = {
@@ -102,6 +103,15 @@ def load_users(dataset_source: str):
         if not users.empty and "signup_date" in users.columns:
             users["signup_date"] = pd.to_datetime(users["signup_date"], format="ISO8601")
         users = apply_value_map(users, dataset_source, "gender")
+
+        # 실제 회사 데이터엔 persona_type이 애초에 라벨링돼서 들어올 리 없다 - 이
+        # 컬럼이 아예 없거나 전부 비어 있을 때만(=athlepa처럼 이미 라벨이 있는
+        # 데이터셋은 안 건드림) 주문/이벤트에서 규칙 기반으로 역산해 채운다.
+        if not users.empty and ("persona_type" not in users.columns or users["persona_type"].isna().all()):
+            orders, events = load(dataset_source)
+            derived = derive_personas(users, orders, events)
+            users["persona_type"] = users["user_id"].map(derived)
+
         return users
 
     return _cached(f"users:{dataset_source}", loader)
