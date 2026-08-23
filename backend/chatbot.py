@@ -9,7 +9,7 @@ import os
 import json
 import uuid
 import contextvars
-from datetime import datetime
+from datetime import datetime, timezone
 
 import anthropic
 import pandas as pd
@@ -494,13 +494,13 @@ def _execute_campaign_proposal(segment: str, channel_label: str, message: str, a
     count = audience or 0
     campaign = {
         "campaign_id": uuid.uuid4().hex[:8],
-        "sent_at": datetime.now().isoformat(),
+        "sent_at": datetime.now(timezone.utc).isoformat(),
         "segment": segment,
         "channel": channel_key,
         "target_count": count,
         "message_summary": f"제목: (AI 챗봇 제안)\n\n본문: {message}",
         "status": f"AI 챗봇 제안 ({channel_meta_label} - {count}명 대상)",
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     campaigns = campaign_builder._load_store()
     campaigns.append(campaign)

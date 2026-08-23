@@ -11,7 +11,7 @@ Render처럼 파일시스템이 임시적인 배포 환경에서 서버가 재�
 import math
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -243,7 +243,7 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         "test_id": str(uuid.uuid4())[:8],
         "test_name": f"{req.segment} · {CHANNEL_META[req.channel]['label']} 테스트",
         "segment": req.segment, "channel": req.channel, "success_metric": req.success_metric,
-        "status": "진행중", "created_at": datetime.now().isoformat(), "ended_at": None,
+        "status": "진행중", "created_at": datetime.now(timezone.utc).isoformat(), "ended_at": None,
         "winner_group_id": None, "groups": group_rows,
     }
 
@@ -260,7 +260,7 @@ def end_ab_test(test_id: str, req: EndTestRequest, session: dict = Depends(auth.
     if not any(g["group_id"] == req.winner_group_id for g in test["groups"]):
         raise HTTPException(status_code=400, detail="유효하지 않은 winner 그룹이에요.")
 
-    ended_at = datetime.now().isoformat()
+    ended_at = datetime.now(timezone.utc).isoformat()
     _update_test(test_id, {"status": "완료", "winner_group_id": req.winner_group_id, "ended_at": ended_at})
     test["status"] = "완료"
     test["winner_group_id"] = req.winner_group_id

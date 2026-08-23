@@ -18,7 +18,7 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import anthropic
@@ -250,7 +250,7 @@ def create_campaign(req: CreateCampaignRequest, session: dict = Depends(auth.get
     channel_label = CHANNEL_META[req.channel]["label"]
 
     if req.trigger_type in ("event", "api"):
-        trigger_start = req.trigger_start_at or datetime.now().isoformat()
+        trigger_start = req.trigger_start_at or datetime.now(timezone.utc).isoformat()
         period_label = f" (활성 기간: {trigger_start} ~ {req.trigger_end_at})" if req.trigger_end_at else f" ({trigger_start}부터, 무기한)"
 
     if req.trigger_type == "event":
@@ -261,12 +261,12 @@ def create_campaign(req: CreateCampaignRequest, session: dict = Depends(auth.get
         sent_at = trigger_start
     elif req.send_mode == "immediate":
         status = f"전체 발송 완료 ({channel_label} - {target_count}명 중 {target_count}명 성공)"
-        sent_at = datetime.now().isoformat()
+        sent_at = datetime.now(timezone.utc).isoformat()
     elif req.send_mode == "scheduled":
         status = f"예약 등록 완료 ({req.send_at} {channel_label} 자동 발송 예정)"
         sent_at = req.send_at
     else:
-        first_run = req.send_at or datetime.now().isoformat()
+        first_run = req.send_at or datetime.now(timezone.utc).isoformat()
         status = f"반복 발송 등록 ({req.recurring_freq}, 첫 발송 {first_run} {channel_label})"
         sent_at = first_run
 
@@ -278,7 +278,7 @@ def create_campaign(req: CreateCampaignRequest, session: dict = Depends(auth.get
         "target_count": target_count,
         "message_summary": f"제목: {req.title.strip()}\n\n본문: {req.body.strip()}",
         "status": status,
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "image_data_url": req.image_data_url,
     }
     if req.trigger_type == "event":
@@ -327,13 +327,13 @@ def test_send_campaign(req: TestSendRequest, session: dict = Depends(auth.get_se
 
     campaign = {
         "campaign_id": str(uuid.uuid4())[:8],
-        "sent_at": datetime.now().isoformat(),
+        "sent_at": datetime.now(timezone.utc).isoformat(),
         "segment": req.segment,
         "channel": req.channel,
         "target_count": 1,
         "message_summary": f"제목: {req.title.strip()}\n\n본문: {req.body.strip()}\n\n(테스트 수신자: {receiver})",
         "status": status,
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     campaigns = _load_store()
     campaigns.append(campaign)
