@@ -81,12 +81,12 @@ function cropToWebpushRatio(dataUrl) {
   });
 }
 
-export default function CampaignWizard({ onCancel, onCreated, onTestSent, initialSegment, initialChannel, initialSituation, recipeTitle, recipeArt, recipeColors }) {
+export default function CampaignWizard({ onCancel, onCreated, onTestSent, initialSegment, initialChannel, initialSituation, templateTitle, templateBody, recipeTitle, recipeArt, recipeColors }) {
   const [segment, setSegment] = useState(initialSegment && SEGMENT_OPTIONS.includes(initialSegment) ? initialSegment : SEGMENT_OPTIONS[0]);
   const [channel, setChannel] = useState(initialChannel && CHANNEL_OPTIONS.some((c) => c.key === initialChannel) ? initialChannel : "kakao");
   const [targetSize, setTargetSize] = useState(null);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [title, setTitle] = useState(templateTitle || "");
+  const [body, setBody] = useState(templateBody || "");
   const [imageDataUrl, setImageDataUrl] = useState(
     recipeArt && recipeColors ? buildRecipeBanner({ title: recipeTitle, art: recipeArt, colors: recipeColors }) : null
   );
@@ -155,12 +155,6 @@ export default function CampaignWizard({ onCancel, onCreated, onTestSent, initia
       setGenerating(false);
     }
   }
-
-  // 레시피 카드로 들어온 경우, 버튼을 또 누르게 하지 않고 그 자리에서 바로 AI 카피를 생성해 둔다.
-  useEffect(() => {
-    if (initialSituation) handleGenerate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function handleImageChange(e) {
     const file = e.target.files?.[0];
@@ -258,7 +252,7 @@ export default function CampaignWizard({ onCancel, onCreated, onTestSent, initia
             <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-600">레시피</span>
             <div className="min-w-0">
               <p className="truncate text-[11px] font-semibold text-violet-800">{recipeTitle}</p>
-              <p className="truncate text-[10px] text-violet-400">{initialSituation} · 이 상황에 맞춰 AI 카피와 배너 이미지를 자동으로 채워넣었어요.</p>
+              <p className="truncate text-[10px] text-violet-400">{initialSituation} · 이 상황에 맞춘 템플릿 문구와 배너 이미지를 채워넣었어요.</p>
             </div>
           </div>
         )}
@@ -306,7 +300,7 @@ export default function CampaignWizard({ onCancel, onCreated, onTestSent, initia
               disabled={generating}
               className="rounded-md bg-violet-50 px-2.5 py-1 text-[10px] font-medium text-violet-600 transition hover:bg-violet-100 disabled:opacity-50"
             >
-              {generating ? "생성 중..." : "✨ AI 카피 자동 생성"}
+              {generating ? "생성 중..." : title || body ? "🔄 AI로 다시 생성" : "✨ AI 카피 자동 생성"}
             </button>
           </div>
           <div className="flex flex-col gap-2">

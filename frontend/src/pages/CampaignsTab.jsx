@@ -110,6 +110,8 @@ export default function CampaignsTab() {
         initialSegment={wizardPrefill?.segment}
         initialChannel={wizardPrefill?.channel}
         initialSituation={wizardPrefill?.situation}
+        templateTitle={wizardPrefill?.templateTitle}
+        templateBody={wizardPrefill?.templateBody}
         recipeTitle={wizardPrefill?.title}
         recipeArt={wizardPrefill?.art}
         recipeColors={wizardPrefill?.colors}

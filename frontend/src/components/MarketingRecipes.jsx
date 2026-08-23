@@ -11,7 +11,7 @@ export default function MarketingRecipes({ campaigns, onSelectRecipe, onOpenAll 
       <div className="mb-2.5 flex items-center justify-between">
         <div>
           <h3 className="text-[11px] font-semibold text-slate-800">마케팅 레시피</h3>
-          <p className="mt-0.5 text-[9px] text-slate-400">상황·세그먼트에 맞는 템플릿을 고르면, AI가 그 자리에서 실제 카피를 생성해 드려요.</p>
+          <p className="mt-0.5 text-[9px] text-slate-400">상황·세그먼트에 맞는 템플릿을 고르면 바로 채워져요. 다른 느낌은 AI로 다시 생성할 수 있어요.</p>
         </div>
         <button onClick={onOpenAll} className="shrink-0 text-[10px] font-medium text-violet-600 hover:underline">
           더보기 ({RECIPES.length - COLLAPSED_COUNT}) →

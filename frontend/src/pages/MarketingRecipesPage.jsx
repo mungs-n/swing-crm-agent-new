@@ -42,7 +42,7 @@ export default function MarketingRecipesPage({ campaigns, onBack, onSelectRecipe
       <div className="mb-4">
         <h2 className="text-sm font-bold text-slate-900">마케팅 레시피</h2>
         <p className="mt-1 text-[11px] text-slate-400">
-          상황·세그먼트별로 미리 정해둔 템플릿이에요. 카드를 선택하면 해당 세그먼트·채널로 캠페인 작성 화면이 열리고, AI가 이 상황에 맞춘 카피를 그 자리에서 실제로 생성해 드려요.
+          상황·세그먼트별로 미리 정해둔 템플릿이에요. 카드를 선택하면 해당 세그먼트·채널로 캠페인 작성 화면이 열리고, 템플릿 문구가 바로 채워져요. 다른 느낌으로 바꾸고 싶으면 AI로 다시 생성할 수 있어요.
         </p>
       </div>
 
