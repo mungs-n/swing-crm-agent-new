@@ -18,6 +18,7 @@ import chatbot
 import performance
 import ab_test
 import campaign_builder
+import ingest
 import raw_data
 
 load_dotenv()
@@ -36,6 +37,7 @@ app.include_router(chatbot.router)
 app.include_router(performance.router)
 app.include_router(ab_test.router)
 app.include_router(campaign_builder.router)
+app.include_router(ingest.router)
 app.include_router(raw_data.router)
 
 
