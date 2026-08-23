@@ -11,6 +11,8 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 from supabase import create_client
 
+from dataset_mapping import apply_value_map
+
 CHANNEL_KR = {"SNS": "SNS", "search_ad": "검색광고", "direct": "직접유입", "email": "이메일", "referral": "추천"}
 PERSONA_KR = {
     "new_explorer": "신규 탐색자", "impulsive_buyer": "충동 구매자", "discount_hunter": "할인 헌터",
@@ -88,6 +90,7 @@ def load(dataset_source: str):
             orders["order_date"] = pd.to_datetime(orders["order_date"], format="ISO8601")
         if not events.empty:
             events["timestamp"] = pd.to_datetime(events["timestamp"], format="ISO8601")
+            events = apply_value_map(events, dataset_source, "event_type")
         return orders, events
 
     return _cached(f"load:{dataset_source}", loader)
@@ -98,6 +101,7 @@ def load_users(dataset_source: str):
         users = _fetch_all("users", dataset_source)
         if not users.empty and "signup_date" in users.columns:
             users["signup_date"] = pd.to_datetime(users["signup_date"], format="ISO8601")
+        users = apply_value_map(users, dataset_source, "gender")
         return users
 
     return _cached(f"users:{dataset_source}", loader)
