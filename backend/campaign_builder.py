@@ -73,12 +73,12 @@ def _delete_campaign(campaign_id: str) -> None:
     data_module._get_client().table(_STORE_TABLE).delete().eq("campaign_id", campaign_id).execute()
 
 
-def _target_user_ids(segment: str) -> list:
+def _target_user_ids(segment: str, dataset_source: str) -> list:
     option = TARGET_OPTIONS.get(segment)
     if option is None:
         return []
-    orders, events = data_module.load("athlepa")
-    users = data_module.load_users("athlepa")
+    orders, events = data_module.load(dataset_source)
+    users = data_module.load_users(dataset_source)
     if users.empty:
         return []
 
@@ -171,7 +171,7 @@ def upload_campaign_image(req: ImageUploadRequest, session: dict = Depends(auth.
 def get_target_size(segment: str, session: dict = Depends(auth.get_session)):
     if segment not in TARGET_OPTIONS:
         raise HTTPException(status_code=400, detail="알 수 없는 세그먼트예요.")
-    return {"size": len(_target_user_ids(segment))}
+    return {"size": len(_target_user_ids(segment, session["dataset_source"]))}
 
 
 @router.post("/api/campaigns/generate-copy")
@@ -249,7 +249,7 @@ def create_campaign(req: CreateCampaignRequest, session: dict = Depends(auth.get
         if req.trigger_end_at <= req.trigger_start_at:
             raise HTTPException(status_code=400, detail="종료일시는 시작일시보다 나중이어야 해요.")
 
-    target_count = len(_target_user_ids(req.segment))
+    target_count = len(_target_user_ids(req.segment, session["dataset_source"]))
     channel_label = CHANNEL_META[req.channel]["label"]
 
     if req.trigger_type in ("event", "api"):

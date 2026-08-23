@@ -79,7 +79,7 @@ def _target_user_ids(segment: str) -> list[str]:
     return sends["user_id"].unique().tolist()
 
 
-def _resolve_receivers(user_ids: list[str], channel: str) -> dict[str, str]:
+def _resolve_receivers(user_ids: list[str], channel: str, dataset_source: str) -> dict[str, str]:
     """user_id -> 실제 수신자(이메일/FCM 토큰) 매핑. users 테이블에 그런 연락처
     컬럼이 원래 없어서 지금은 항상 빈 dict를 돌려주고, 발송 시도는 스킵된다.
     나중에 실제 회원 연락처/알림 동의 토큰이 테이블에 쌓이면 여기 컬럼명만 채우면
@@ -87,20 +87,20 @@ def _resolve_receivers(user_ids: list[str], channel: str) -> dict[str, str]:
     contact_col = {"email": "email", "webpush": "fcm_token"}.get(channel)
     if contact_col is None or not user_ids:
         return {}
-    users = data_module.load_users("athlepa")
+    users = data_module.load_users(dataset_source)
     if users.empty or contact_col not in users.columns:
         return {}
     subset = users.loc[users["user_id"].isin(user_ids), ["user_id", contact_col]].dropna()
     return dict(zip(subset["user_id"], subset[contact_col]))
 
 
-def _dispatch_group(channel: str, user_ids: list[str], title: str, body: str, image: str | None) -> dict | None:
+def _dispatch_group(channel: str, user_ids: list[str], title: str, body: str, image: str | None, dataset_source: str) -> dict | None:
     """email/webpush 그룹에 한해 실제로 email_sender/push_sender를 호출해 발송을
     시도한다. 카카오/문자는 아직 실 연동 전이라 None을 돌려주고 호출부가 시뮬레이션을
     그대로 쓴다."""
     if channel not in ("email", "webpush"):
         return None
-    receivers = _resolve_receivers(user_ids, channel)
+    receivers = _resolve_receivers(user_ids, channel, dataset_source)
     sent = failed = 0
     for uid in user_ids:
         receiver = receivers.get(uid)
@@ -300,7 +300,7 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         stats = _simulate_group_counts(req.channel, users, is_control=False)
         msg = req.messages.get(g.label, {})
         title, text, image = msg.get("title", ""), msg.get("text", ""), msg.get("image_data_url")
-        dispatch = _dispatch_group(req.channel, id_slices[i], title, text, image)
+        dispatch = _dispatch_group(req.channel, id_slices[i], title, text, image, session["dataset_source"])
         group_rows.append({
             "group_id": group_id, "label": g.label, "is_control": False, "ratio": g.ratio,
             "users": users, "title": title, "text": text,
