@@ -86,6 +86,10 @@ class UserIngest(BaseModel):
     # 회사가 이미 자체 고객 세그먼트를 갖고 있으면 직접 넘겨도 된다. 안 넘기면
     # data.load_users()가 주문/이벤트로부터 자동으로 추정해 채운다(utils/persona.py).
     persona_type: str | None = None
+    # 이 두 필드가 있어야 캠페인/A-B 테스트가 실제로 발송된다(ab_test._resolve_receivers,
+    # push_sender/email_sender) - 없으면 대상자는 잡히지만 발송은 "연락처 없음"으로 스킵된다.
+    email: str | None = None
+    fcm_token: str | None = None
 
 
 @router.post("/api/ingest/track")
@@ -153,7 +157,7 @@ def ingest_user(user: UserIngest):
         raise HTTPException(status_code=401, detail="유효하지 않은 webhook_secret이에요.")
 
     row = {"dataset_source": dataset_source, "user_id": user.user_id}
-    for field in ("name", "gender", "age", "region", "acquisition_channel", "signup_date", "persona_type"):
+    for field in ("name", "gender", "age", "region", "acquisition_channel", "signup_date", "persona_type", "email", "fcm_token"):
         value = getattr(user, field)
         if value is not None:
             row[field] = value
