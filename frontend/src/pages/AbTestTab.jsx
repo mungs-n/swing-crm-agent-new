@@ -68,8 +68,21 @@ function GroupTable({ test }) {
         </tbody>
       </table>
       <p className="mt-2 text-[9px] text-slate-300">
-        * p-value 0.05 미만이면 통계적으로 유의미해요. 실제 발송 연동 전이라 오픈/클릭/전환 수는 채널 히스토리 기반 시뮬레이션이에요.
+        * p-value 0.05 미만이면 통계적으로 유의미해요. 실시간 트래킹 인프라가 없어서 오픈/클릭/전환 수는 채널 히스토리 기반 시뮬레이션이에요.
       </p>
+      {test.groups.some((g) => g.dispatch) && (
+        <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-2 text-[9px] text-slate-500">
+          <p className="mb-1 font-semibold text-slate-600">실제 발송 시도 결과 (이메일/웹 푸시는 시뮬레이션이 아니라 SendGrid/FCM을 실제로 호출해요)</p>
+          {test.groups.filter((g) => g.dispatch).map((g) => (
+            <p key={g.group_id}>
+              {g.label}: {g.dispatch.sent}/{g.dispatch.attempted}명 성공
+              {g.dispatch.skipped_no_contact > 0 && ` · ${g.dispatch.skipped_no_contact}명 연락처 정보 없어서 스킵`}
+              {g.dispatch.failed > 0 && ` · ${g.dispatch.failed}명 발송 실패`}
+            </p>
+          ))}
+          <p className="mt-1 text-slate-300">지금 users 테이블에 이메일/기기 토큰이 없어서 대부분 스킵돼요. 실제 회원 연락처가 쌓이면 그대로 발송돼요.</p>
+        </div>
+      )}
     </div>
   );
 }

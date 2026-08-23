@@ -300,7 +300,7 @@ export default function CampaignWizard({ onCancel, onCreated, onTestSent, initia
               disabled={generating}
               className="rounded-md bg-violet-50 px-2.5 py-1 text-[10px] font-medium text-violet-600 transition hover:bg-violet-100 disabled:opacity-50"
             >
-              {generating ? "생성 중..." : title || body ? "🔄 AI로 다시 생성" : "✨ AI 카피 자동 생성"}
+              {generating ? "생성 중..." : title || body ? "AI로 다시 생성" : "✨ AI 카피 자동 생성"}
             </button>
           </div>
           <div className="flex flex-col gap-2">

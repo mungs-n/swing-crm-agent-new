@@ -1,8 +1,17 @@
 """
 A/B 테스트 생성/조회. campaign_history/campaign_sends와 같은 이유로 dataset_source
-구분 없이 ATHLEPA 전용으로 운영된다. 실제 발송 연동(SendGrid 등) 전이라, 그룹별
-오픈/클릭/전환 수는 campaign_sends의 채널별 실제 히스토리 비율을 기반으로
-시뮬레이션한다 (라이브 트래킹이 아니라는 걸 프론트에서 항상 같이 안내한다).
+구분 없이 ATHLEPA 전용으로 운영된다.
+
+이메일/웹 푸시는 그룹별로 실제 email_sender/push_sender를 호출해서 진짜 발송을
+시도한다(_dispatch_group). 다만 users 테이블에 이메일/기기 토큰 같은 연락처 컬럼이
+아예 없어서(Streamlit 원본부터 그랬다 - fcm_tokens.csv도 비어 있었다) 지금은 발송
+시도가 전부 "연락처 없음"으로 스킵된다 - 나중에 실제 회원 연락처/알림 동의 토큰이
+쌓이면 _resolve_receivers()의 컬럼명만 채우면 그대로 실제로 나간다. 카카오/문자는
+아직 실 연동 전이라 시뮬레이션만 한다. 오픈/클릭/전환 수는 어느 채널이든 실시간
+트래킹 인프라가 없어서 campaign_sends의 채널별 실제 히스토리 비율을 기반으로 항상
+시뮬레이션한다(라이브 트래킹이 아니라는 걸 프론트에서 항상 같이 안내한다) - 발송
+시도 자체가 실제인 것과는 별개다.
+
 테스트 목록은 Supabase의 ab_tests 테이블에 저장한다 - 로컬 파일(JSON)로 저장하면
 Render처럼 파일시스템이 임시적인 배포 환경에서 서버가 재시작될 때마다 기록이
 사라지기 때문 (campaign_history/campaign_sends와 겹치지 않게 별도 테이블 사용).
@@ -18,7 +27,9 @@ from pydantic import BaseModel
 
 import auth
 import data as data_module
+import email_sender
 import performance
+import push_sender
 
 router = APIRouter()
 
@@ -55,6 +66,58 @@ def _target_size(segment: str) -> int:
     if segment == "전체":
         return int(sends["user_id"].nunique())
     return int(sends.loc[sends["segment"] == segment, "user_id"].nunique())
+
+
+def _target_user_ids(segment: str) -> list[str]:
+    """실제 발송 대상 user_id 목록. _target_size와 같은 데이터 소스(campaign_sends)를
+    써서 화면에 보이는 타겟 규모와 실제 발송 시도 대상 수가 어긋나지 않게 한다."""
+    sends = performance._load_campaign_sends()
+    if sends.empty:
+        return []
+    if segment != "전체":
+        sends = sends[sends["segment"] == segment]
+    return sends["user_id"].unique().tolist()
+
+
+def _resolve_receivers(user_ids: list[str], channel: str) -> dict[str, str]:
+    """user_id -> 실제 수신자(이메일/FCM 토큰) 매핑. users 테이블에 그런 연락처
+    컬럼이 원래 없어서 지금은 항상 빈 dict를 돌려주고, 발송 시도는 스킵된다.
+    나중에 실제 회원 연락처/알림 동의 토큰이 테이블에 쌓이면 여기 컬럼명만 채우면
+    실제로 나가기 시작한다."""
+    contact_col = {"email": "email", "webpush": "fcm_token"}.get(channel)
+    if contact_col is None or not user_ids:
+        return {}
+    users = data_module.load_users("athlepa")
+    if users.empty or contact_col not in users.columns:
+        return {}
+    subset = users.loc[users["user_id"].isin(user_ids), ["user_id", contact_col]].dropna()
+    return dict(zip(subset["user_id"], subset[contact_col]))
+
+
+def _dispatch_group(channel: str, user_ids: list[str], title: str, body: str, image: str | None) -> dict | None:
+    """email/webpush 그룹에 한해 실제로 email_sender/push_sender를 호출해 발송을
+    시도한다. 카카오/문자는 아직 실 연동 전이라 None을 돌려주고 호출부가 시뮬레이션을
+    그대로 쓴다."""
+    if channel not in ("email", "webpush"):
+        return None
+    receivers = _resolve_receivers(user_ids, channel)
+    sent = failed = 0
+    for uid in user_ids:
+        receiver = receivers.get(uid)
+        if not receiver:
+            continue
+        try:
+            if channel == "email":
+                email_sender.send_email(receiver, title, body)
+            else:
+                push_sender.send_web_push(receiver, title, body, image=image)
+            sent += 1
+        except Exception:
+            failed += 1
+    return {
+        "attempted": len(user_ids), "sent": sent, "failed": failed,
+        "skipped_no_contact": len(user_ids) - sent - failed,
+    }
 
 
 def _apportion(n: int, ratios: list[int]) -> list[int]:
@@ -217,9 +280,18 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         if not msg.get("title", "").strip():
             raise HTTPException(status_code=400, detail=f"'{g.label}' 그룹의 메시지 제목을 입력해주세요.")
 
-    size = _target_size(req.segment)
+    target_ids = _target_user_ids(req.segment)
+    size = len(target_ids)
     ratios = [g.ratio for g in req.groups] + ([req.control_ratio] if req.include_control else [])
     counts = _apportion(size, ratios)
+
+    # 그룹 순서(변형 그룹들 -> 컨트롤)대로 실제 대상자 id를 나눠 갖는다 - 발송 시도를
+    # 실제 대상자에게 하기 위함(오픈/클릭/전환 시뮬레이션은 인원수만 필요해서 무관).
+    id_slices = []
+    cursor = 0
+    for c in counts:
+        id_slices.append(target_ids[cursor:cursor + c])
+        cursor += c
 
     group_rows = []
     for i, g in enumerate(req.groups):
@@ -227,16 +299,18 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         users = counts[i]
         stats = _simulate_group_counts(req.channel, users, is_control=False)
         msg = req.messages.get(g.label, {})
+        title, text, image = msg.get("title", ""), msg.get("text", ""), msg.get("image_data_url")
+        dispatch = _dispatch_group(req.channel, id_slices[i], title, text, image)
         group_rows.append({
             "group_id": group_id, "label": g.label, "is_control": False, "ratio": g.ratio,
-            "users": users, "title": msg.get("title", ""), "text": msg.get("text", ""),
-            "image_data_url": msg.get("image_data_url"), **stats,
+            "users": users, "title": title, "text": text,
+            "image_data_url": image, "dispatch": dispatch, **stats,
         })
     if req.include_control:
         users = counts[-1]
         group_rows.append({
             "group_id": "ctrl", "label": "컨트롤", "is_control": True, "ratio": req.control_ratio,
-            "users": users, "title": "", "text": "", "opens": 0, "clicks": 0, "conversions": 0,
+            "users": users, "title": "", "text": "", "dispatch": None, "opens": 0, "clicks": 0, "conversions": 0,
         })
 
     test = {
