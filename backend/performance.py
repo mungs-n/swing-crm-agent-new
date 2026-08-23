@@ -134,7 +134,7 @@ def get_campaigns(session: dict = Depends(auth.get_session)):
                 "message_summary": r.get("message_summary", ""),
             })
 
-    for c in campaign_builder._load_store():
+    for c in campaign_builder._load_store(session["dataset_source"]):
         out.append({
             "campaign_id": c["campaign_id"],
             "name": _extract_campaign_name(c.get("message_summary"), f"{c.get('segment', '')} 캠페인"),

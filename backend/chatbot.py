@@ -503,7 +503,7 @@ def _execute_campaign_proposal(segment: str, channel_label: str, message: str, a
         "status": f"AI 챗봇 제안 ({channel_meta_label} - {count}명 대상)",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    campaign_builder._insert_campaign(campaign)
+    campaign_builder._insert_campaign(campaign, _current_dataset_source.get())
     return campaign["campaign_id"]
 
 

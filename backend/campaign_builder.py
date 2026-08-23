@@ -57,20 +57,20 @@ CHANNEL_META = {
 }
 
 
-def _load_store() -> list[dict]:
-    return data_module._get_client().table(_STORE_TABLE).select("*").execute().data
+def _load_store(dataset_source: str) -> list[dict]:
+    return data_module._get_client().table(_STORE_TABLE).select("*").eq("dataset_source", dataset_source).execute().data
 
 
-def _insert_campaign(campaign: dict) -> None:
-    data_module._get_client().table(_STORE_TABLE).insert(campaign).execute()
+def _insert_campaign(campaign: dict, dataset_source: str) -> None:
+    data_module._get_client().table(_STORE_TABLE).insert({**campaign, "dataset_source": dataset_source}).execute()
 
 
-def _update_campaign(campaign_id: str, patch: dict) -> None:
-    data_module._get_client().table(_STORE_TABLE).update(patch).eq("campaign_id", campaign_id).execute()
+def _update_campaign(campaign_id: str, patch: dict, dataset_source: str) -> None:
+    data_module._get_client().table(_STORE_TABLE).update(patch).eq("campaign_id", campaign_id).eq("dataset_source", dataset_source).execute()
 
 
-def _delete_campaign(campaign_id: str) -> None:
-    data_module._get_client().table(_STORE_TABLE).delete().eq("campaign_id", campaign_id).execute()
+def _delete_campaign(campaign_id: str, dataset_source: str) -> None:
+    data_module._get_client().table(_STORE_TABLE).delete().eq("campaign_id", campaign_id).eq("dataset_source", dataset_source).execute()
 
 
 def _target_user_ids(segment: str, dataset_source: str) -> list:
@@ -218,7 +218,7 @@ def generate_copy(req: GenerateCopyRequest, session: dict = Depends(auth.get_ses
 def list_local_campaigns(session: dict = Depends(auth.get_session)):
     """캠페인 관리 목록에 합쳐질 로컬(시뮬레이션) 캠페인들. performance.py의
     get_campaigns()가 실제 campaign_history와 합쳐서 반환한다."""
-    return _load_store()
+    return _load_store(session["dataset_source"])
 
 
 @router.post("/api/campaigns")
@@ -293,7 +293,7 @@ def create_campaign(req: CreateCampaignRequest, session: dict = Depends(auth.get
             "freq": req.recurring_freq, "weekdays": req.recurring_weekdays, "active": True,
         }
 
-    _insert_campaign(campaign)
+    _insert_campaign(campaign, session["dataset_source"])
     return campaign
 
 
@@ -336,31 +336,31 @@ def test_send_campaign(req: TestSendRequest, session: dict = Depends(auth.get_se
         "status": status,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    _insert_campaign(campaign)
+    _insert_campaign(campaign, session["dataset_source"])
     return campaign
 
 
 @router.get("/api/campaigns/recurring")
 def list_recurring_campaigns(session: dict = Depends(auth.get_session)):
-    return [c for c in _load_store() if c.get("recurring")]
+    return [c for c in _load_store(session["dataset_source"]) if c.get("recurring")]
 
 
 @router.post("/api/campaigns/recurring/{campaign_id}/toggle")
 def toggle_recurring_campaign(campaign_id: str, session: dict = Depends(auth.get_session)):
-    campaigns = _load_store()
+    campaigns = _load_store(session["dataset_source"])
     campaign = next((c for c in campaigns if c["campaign_id"] == campaign_id and c.get("recurring")), None)
     if campaign is None:
         raise HTTPException(status_code=404, detail="반복 발송 캠페인을 찾을 수 없어요.")
     campaign["recurring"]["active"] = not campaign["recurring"]["active"]
-    _update_campaign(campaign_id, {"recurring": campaign["recurring"]})
+    _update_campaign(campaign_id, {"recurring": campaign["recurring"]}, session["dataset_source"])
     return campaign
 
 
 @router.delete("/api/campaigns/recurring/{campaign_id}")
 def delete_recurring_campaign(campaign_id: str, session: dict = Depends(auth.get_session)):
-    campaigns = _load_store()
+    campaigns = _load_store(session["dataset_source"])
     remaining = [c for c in campaigns if c["campaign_id"] != campaign_id]
     if len(remaining) == len(campaigns):
         raise HTTPException(status_code=404, detail="반복 발송 캠페인을 찾을 수 없어요.")
-    _delete_campaign(campaign_id)
+    _delete_campaign(campaign_id, session["dataset_source"])
     return {"ok": True}

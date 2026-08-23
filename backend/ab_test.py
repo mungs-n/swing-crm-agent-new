@@ -47,16 +47,16 @@ SUCCESS_METRICS = {"open": "오픈율", "click": "클릭률", "conversion": "전
 METRIC_COUNT_FIELD = {"open": "opens", "click": "clicks", "conversion": "conversions"}
 
 
-def _load_store() -> list[dict]:
-    return data_module._get_client().table("ab_tests").select("*").execute().data
+def _load_store(dataset_source: str) -> list[dict]:
+    return data_module._get_client().table("ab_tests").select("*").eq("dataset_source", dataset_source).execute().data
 
 
-def _insert_test(test: dict) -> None:
-    data_module._get_client().table("ab_tests").insert(test).execute()
+def _insert_test(test: dict, dataset_source: str) -> None:
+    data_module._get_client().table("ab_tests").insert({**test, "dataset_source": dataset_source}).execute()
 
 
-def _update_test(test_id: str, patch: dict) -> None:
-    data_module._get_client().table("ab_tests").update(patch).eq("test_id", test_id).execute()
+def _update_test(test_id: str, patch: dict, dataset_source: str) -> None:
+    data_module._get_client().table("ab_tests").update(patch).eq("test_id", test_id).eq("dataset_source", dataset_source).execute()
 
 
 def _target_size(segment: str) -> int:
@@ -246,7 +246,7 @@ def get_segment_size(segment: str, session: dict = Depends(auth.get_session)):
 
 @router.get("/api/ab-tests")
 def list_ab_tests(session: dict = Depends(auth.get_session)):
-    tests = _load_store()
+    tests = _load_store(session["dataset_source"])
     tests.sort(key=lambda t: t["created_at"], reverse=True)
     enriched = [_enrich_test(t) for t in tests]
 
@@ -321,13 +321,13 @@ def create_ab_test(req: CreateTestRequest, session: dict = Depends(auth.get_sess
         "winner_group_id": None, "groups": group_rows,
     }
 
-    _insert_test(test)
+    _insert_test(test, session["dataset_source"])
     return _enrich_test(test)
 
 
 @router.post("/api/ab-tests/{test_id}/end")
 def end_ab_test(test_id: str, req: EndTestRequest, session: dict = Depends(auth.get_session)):
-    tests = _load_store()
+    tests = _load_store(session["dataset_source"])
     test = next((t for t in tests if t["test_id"] == test_id), None)
     if test is None:
         raise HTTPException(status_code=404, detail="테스트를 찾을 수 없어요.")
@@ -335,7 +335,7 @@ def end_ab_test(test_id: str, req: EndTestRequest, session: dict = Depends(auth.
         raise HTTPException(status_code=400, detail="유효하지 않은 winner 그룹이에요.")
 
     ended_at = datetime.now(timezone.utc).isoformat()
-    _update_test(test_id, {"status": "완료", "winner_group_id": req.winner_group_id, "ended_at": ended_at})
+    _update_test(test_id, {"status": "완료", "winner_group_id": req.winner_group_id, "ended_at": ended_at}, session["dataset_source"])
     test["status"] = "완료"
     test["winner_group_id"] = req.winner_group_id
     test["ended_at"] = ended_at
