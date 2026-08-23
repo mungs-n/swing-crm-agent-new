@@ -485,10 +485,11 @@ def tool_propose_campaign(segment: str, channel: str, message: str) -> dict:
 
 
 def _execute_campaign_proposal(segment: str, channel_label: str, message: str, audience: int | None) -> str:
-    """캠페인 제안 '실행' - 실제 발송이 아니라 campaign_builder.py의 로컬 캠페인
-    저장소(=자동화 탭 '캠페인 관리' 목록이 읽는 곳)에 기록을 남기는 것까지만 의미한다.
-    campaign_builder.py의 CampaignWizard가 쓰는 것과 같은 저장소를 그대로 재사용해서,
-    챗봇에서 실행한 캠페인도 캠페인 관리 목록에 똑같이 나타나게 한다."""
+    """캠페인 제안 '실행' - 실제 발송이 아니라 campaign_builder.py의 캠페인
+    저장소(=자동화 탭 '캠페인 관리' 목록이 읽는 곳, Supabase campaign_test_log 테이블)에
+    기록을 남기는 것까지만 의미한다. campaign_builder.py의 CampaignWizard가 쓰는 것과
+    같은 저장소를 그대로 재사용해서, 챗봇에서 실행한 캠페인도 캠페인 관리 목록에
+    똑같이 나타나게 한다."""
     channel_key = _CHANNEL_LABEL_TO_KEY.get(channel_label, "kakao")
     channel_meta_label = campaign_builder.CHANNEL_META.get(channel_key, {}).get("label", channel_label)
     count = audience or 0
@@ -502,9 +503,7 @@ def _execute_campaign_proposal(segment: str, channel_label: str, message: str, a
         "status": f"AI 챗봇 제안 ({channel_meta_label} - {count}명 대상)",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    campaigns = campaign_builder._load_store()
-    campaigns.append(campaign)
-    campaign_builder._save_store(campaigns)
+    campaign_builder._insert_campaign(campaign)
     return campaign["campaign_id"]
 
 

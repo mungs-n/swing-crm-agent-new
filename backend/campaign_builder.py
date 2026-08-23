@@ -2,14 +2,15 @@
 캠페인 생성 (타겟 선택 -> AI 카피 생성 -> 발송). Streamlit 버전(automation/campaign_builder.py)의
 핵심 흐름을 그대로 옮기되, 두 가지는 의도적으로 다르게 갔다.
 
-1) 카카오톡/문자/웹 푸시 발송 연동(SendGrid/Firebase)이 이 백엔드에는 아예 없다
-   (.env에 관련 키가 없음 - ANTHROPIC_API_KEY/SUPABASE만 있음). 그래서 '발송'은
-   실제로 어디에도 메시지를 보내지 않고, 채널 히스토리 기반 시뮬레이션으로 그친다.
+1) 이메일/웹 푸시는 실제로 발송한다(SendGrid/Firebase, email_sender.py/push_sender.py).
+   카카오톡/문자는 아직 실 연동 전이라 채널 히스토리 기반 시뮬레이션으로 그친다.
 2) 생성된 캠페인은 실제 운영 중인 Supabase campaign_history 테이블에 쓰지 않고
-   로컬 JSON 파일에 따로 저장한다 - Streamlit 버전과 같은 Supabase 프로젝트를
-   그대로 재사용하는 중이라, 여기서 만든 실험/시뮬레이션 캠페인이 실제 팀 대시보드에
-   섞여 들어가면 안 되기 때문이다(ab_test.py도 같은 이유로 파일 저장을 쓴다).
-   그래서 캠페인 관리 목록(GET /api/campaigns)은 실제 campaign_history + 이 파일을
+   별도의 campaign_test_log 테이블에 저장한다 - Streamlit 버전과 같은 Supabase
+   프로젝트를 그대로 재사용하는 중이라, 여기서 만든 실험/시뮬레이션 캠페인이 실제
+   팀 대시보드에 섞여 들어가면 안 되기 때문이다(ab_test.py도 같은 이유로 별도
+   테이블을 쓴다). 로컬 JSON 파일은 Render처럼 파일시스템이 임시적인 배포
+   환경에서 재시작될 때마다 기록이 사라져서 쓰지 않는다.
+   그래서 캠페인 관리 목록(GET /api/campaigns)은 실제 campaign_history + 이 테이블을
    합쳐서 보여준다.
 """
 
@@ -19,7 +20,6 @@ import os
 import re
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
@@ -33,7 +33,7 @@ from utils.rfm import calculate_rfm, assign_segment
 
 router = APIRouter()
 
-_STORE_PATH = Path(__file__).parent / "data_store" / "campaigns.json"
+_STORE_TABLE = "campaign_test_log"
 
 TARGET_OPTIONS = {
     "신규 탐색자": {"kind": "persona", "key": "new_explorer", "desc": ["가입 14일 이내", "첫 구매 유도 필요", "신규회원 전용 웰컴 혜택", "베스트셀러 추천"]},
@@ -58,16 +58,19 @@ CHANNEL_META = {
 
 
 def _load_store() -> list[dict]:
-    if not _STORE_PATH.exists():
-        return []
-    with open(_STORE_PATH, encoding="utf-8") as f:
-        return json.load(f)
+    return data_module._get_client().table(_STORE_TABLE).select("*").execute().data
 
 
-def _save_store(campaigns: list[dict]) -> None:
-    _STORE_PATH.parent.mkdir(exist_ok=True)
-    with open(_STORE_PATH, "w", encoding="utf-8") as f:
-        json.dump(campaigns, f, ensure_ascii=False, indent=2)
+def _insert_campaign(campaign: dict) -> None:
+    data_module._get_client().table(_STORE_TABLE).insert(campaign).execute()
+
+
+def _update_campaign(campaign_id: str, patch: dict) -> None:
+    data_module._get_client().table(_STORE_TABLE).update(patch).eq("campaign_id", campaign_id).execute()
+
+
+def _delete_campaign(campaign_id: str) -> None:
+    data_module._get_client().table(_STORE_TABLE).delete().eq("campaign_id", campaign_id).execute()
 
 
 def _target_user_ids(segment: str) -> list:
@@ -290,9 +293,7 @@ def create_campaign(req: CreateCampaignRequest, session: dict = Depends(auth.get
             "freq": req.recurring_freq, "weekdays": req.recurring_weekdays, "active": True,
         }
 
-    campaigns = _load_store()
-    campaigns.append(campaign)
-    _save_store(campaigns)
+    _insert_campaign(campaign)
     return campaign
 
 
@@ -335,9 +336,7 @@ def test_send_campaign(req: TestSendRequest, session: dict = Depends(auth.get_se
         "status": status,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    campaigns = _load_store()
-    campaigns.append(campaign)
-    _save_store(campaigns)
+    _insert_campaign(campaign)
     return campaign
 
 
@@ -353,7 +352,7 @@ def toggle_recurring_campaign(campaign_id: str, session: dict = Depends(auth.get
     if campaign is None:
         raise HTTPException(status_code=404, detail="반복 발송 캠페인을 찾을 수 없어요.")
     campaign["recurring"]["active"] = not campaign["recurring"]["active"]
-    _save_store(campaigns)
+    _update_campaign(campaign_id, {"recurring": campaign["recurring"]})
     return campaign
 
 
@@ -363,5 +362,5 @@ def delete_recurring_campaign(campaign_id: str, session: dict = Depends(auth.get
     remaining = [c for c in campaigns if c["campaign_id"] != campaign_id]
     if len(remaining) == len(campaigns):
         raise HTTPException(status_code=404, detail="반복 발송 캠페인을 찾을 수 없어요.")
-    _save_store(remaining)
+    _delete_campaign(campaign_id)
     return {"ok": True}
