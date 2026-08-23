@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { requestFcmToken } from "../firebase";
+import { cropToWebpushRatio } from "../utils/webpushImage";
 
 const SEGMENT_OPTIONS = ["전체", "신규 탐색자", "충동 구매자", "할인 구매자", "브랜드 충성 고객", "이탈 위험 고객", "휴면 고객"];
 const CHANNEL_OPTIONS = [
@@ -9,6 +11,7 @@ const CHANNEL_OPTIONS = [
   { key: "webpush", label: "웹 푸시", clickTrackable: true },
   { key: "webpopup", label: "웹 팝업", clickTrackable: true },
 ];
+const TEST_RECEIVER_PLACEHOLDER = { kakao: "휴대폰 번호 입력", sms: "휴대폰 번호 입력", webpush: "FCM 토큰 입력", email: "이메일 주소 입력", webpopup: "수신자 입력" };
 const SUCCESS_METRICS = [
   { key: "open", label: "오픈율" },
   { key: "click", label: "클릭률" },
@@ -36,6 +39,12 @@ export default function AbTestWizard({ onCancel, onCreated }) {
   const [successMetric, setSuccessMetric] = useState("conversion");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const [testReceiver, setTestReceiver] = useState("");
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState("");
+  const [fcmLoading, setFcmLoading] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState({ src: null, url: null });
 
   useEffect(() => {
     setSegmentSize(null);
@@ -92,6 +101,59 @@ export default function AbTestWizard({ onCancel, onCreated }) {
 
   function updateMessage(label, field, value) {
     setMessages((prev) => ({ ...prev, [label]: { ...prev[label], [field]: value } }));
+  }
+
+  // 웹 푸시 이미지는 FCM이 외부에서 직접 fetch하는 실제 https URL이어야 해서, 보낼 때
+  // Supabase Storage에 업로드해 공개 URL로 바꿔서 넣는다. 같은 이미지면 재업로드하지 않는다.
+  async function getWebpushImageUrl(imageDataUrl) {
+    if (!imageDataUrl) return null;
+    if (!imageDataUrl.startsWith("data:")) return imageDataUrl;
+    if (uploadedImage.src === imageDataUrl) return uploadedImage.url;
+    const cropped = await cropToWebpushRatio(imageDataUrl);
+    const { url } = await api.uploadCampaignImage(cropped);
+    setUploadedImage({ src: imageDataUrl, url });
+    return url;
+  }
+
+  async function handleGetFcmToken() {
+    setFcmLoading(true);
+    setTestResult("");
+    try {
+      const token = await requestFcmToken();
+      setTestReceiver(token);
+      setTestResult("이 브라우저의 알림 토큰을 가져왔어요. 테스트 발송을 누르면 이 브라우저로 실제 알림이 와요.");
+    } catch (e) {
+      setTestResult(e.message || "토큰을 가져오지 못했어요.");
+    } finally {
+      setFcmLoading(false);
+    }
+  }
+
+  // 그룹별 실제 발송 대상 전체에겐 아직 못 보낸다(users 테이블에 연락처 정보가
+  // 없어서) - 대신 지금 편집 중인 그룹(activeMsgTab)의 문구를 사람이 직접 입력한
+  // 수신자 한 명에게 실제로 보내서, 채널별로 문구/이미지가 제대로 도착하는지
+  // 미리 확인할 수 있게 한다. 캠페인 위저드의 테스트 발송과 같은 경로를 재사용한다.
+  async function handleTestSend() {
+    setTestResult("");
+    const msg = messages[activeMsgTab] || {};
+    if (!testReceiver.trim()) {
+      setTestResult("수신자 정보를 입력해주세요.");
+      return;
+    }
+    if (!msg.title?.trim() || !msg.text?.trim()) {
+      setTestResult(`'${activeMsgTab}' 그룹의 메시지 제목/본문을 먼저 입력해주세요.`);
+      return;
+    }
+    setTestSending(true);
+    try {
+      const imageUrl = channel === "webpush" ? await getWebpushImageUrl(msg.image_data_url) : null;
+      await api.testSendCampaign({ segment, channel, title: msg.title, body: msg.text, receiver: testReceiver, image_url: imageUrl });
+      setTestResult(`'${activeMsgTab}' 그룹 메시지가 실제로 발송됐어요.`);
+    } catch (e) {
+      setTestResult(e.message || "테스트 발송에 실패했어요.");
+    } finally {
+      setTestSending(false);
+    }
   }
 
   async function handleSubmit() {
@@ -262,6 +324,37 @@ export default function AbTestWizard({ onCancel, onCreated }) {
               />
             </label>
           )}
+        </div>
+
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <p className="mb-1.5 text-[10px] text-slate-400">
+            '{activeMsgTab}' 그룹 문구를 실제 수신자 한 명에게 보내서 미리 확인해볼 수 있어요. (전체 대상자 발송과는 별개예요.)
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {channel === "webpush" && (
+              <button
+                onClick={handleGetFcmToken}
+                disabled={fcmLoading}
+                className="rounded-md border border-dashed border-violet-300 px-2 py-1.5 text-[10px] font-medium text-violet-500 hover:bg-violet-50 disabled:opacity-50"
+              >
+                {fcmLoading ? "가져오는 중..." : "이 브라우저 알림 토큰 가져오기"}
+              </button>
+            )}
+            <input
+              value={testReceiver}
+              onChange={(e) => setTestReceiver(e.target.value)}
+              placeholder={TEST_RECEIVER_PLACEHOLDER[channel]}
+              className="min-w-0 flex-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
+            />
+            <button
+              onClick={handleTestSend}
+              disabled={testSending}
+              className="shrink-0 rounded-md bg-slate-800 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
+            >
+              {testSending ? "발송 중..." : "테스트 발송"}
+            </button>
+          </div>
+          {testResult && <p className="mt-1.5 text-[10px] text-slate-500">{testResult}</p>}
         </div>
       </Block>
 
