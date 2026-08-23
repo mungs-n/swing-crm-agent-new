@@ -81,7 +81,7 @@ function cropToWebpushRatio(dataUrl) {
   });
 }
 
-export default function CampaignWizard({ onCancel, onCreated, initialSegment, initialChannel, initialSituation, recipeTitle, recipeArt, recipeColors }) {
+export default function CampaignWizard({ onCancel, onCreated, onTestSent, initialSegment, initialChannel, initialSituation, recipeTitle, recipeArt, recipeColors }) {
   const [segment, setSegment] = useState(initialSegment && SEGMENT_OPTIONS.includes(initialSegment) ? initialSegment : SEGMENT_OPTIONS[0]);
   const [channel, setChannel] = useState(initialChannel && CHANNEL_OPTIONS.some((c) => c.key === initialChannel) ? initialChannel : "kakao");
   const [targetSize, setTargetSize] = useState(null);
@@ -187,6 +187,7 @@ export default function CampaignWizard({ onCancel, onCreated, initialSegment, in
       const imageUrl = channel === "webpush" ? await getWebpushImageUrl() : null;
       await api.testSendCampaign({ segment, channel, title, body, receiver: testReceiver, image_url: imageUrl });
       setTestResult(`[${CHANNEL_OPTIONS.find((c) => c.key === channel).label}] 테스트 메시지가 발송 이력에 기록됐어요.`);
+      onTestSent?.();
     } catch (e) {
       setTestResult(e.message || "테스트 발송에 실패했어요.");
     } finally {

@@ -106,6 +106,7 @@ export default function CampaignsTab() {
       <CampaignWizard
         onCancel={() => setWizardOpen(false)}
         onCreated={() => { setWizardOpen(false); load(); }}
+        onTestSent={load}
         initialSegment={wizardPrefill?.segment}
         initialChannel={wizardPrefill?.channel}
         initialSituation={wizardPrefill?.situation}
