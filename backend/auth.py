@@ -59,6 +59,7 @@ class SignupRequest(BaseModel):
     company_name: str
     email: str
     password: str
+    currency: str = "KRW"
 
 
 class SessionOut(BaseModel):
@@ -66,6 +67,7 @@ class SessionOut(BaseModel):
     company_id: str
     company_name: str
     dataset_source: str
+    currency: str = "KRW"
     email: str | None = None
     api_key: str | None = None
     webhook_secret: str | None = None
@@ -92,6 +94,7 @@ def login(req: LoginRequest):
         "company_id": company["company_id"],
         "company_name": company["company_name"],
         "dataset_source": company["dataset_source"],
+        "currency": company.get("currency") or "KRW",
         "email": user["email"],
     }
     return SessionOut(token=token, **SESSIONS[token])
@@ -115,13 +118,14 @@ def signup(req: SignupRequest):
         "dataset_source": company_id,
         "api_key": api_key,
         "webhook_secret": webhook_secret,
+        "currency": req.currency,
     }).execute()
     sb.table("platform_users").insert({
         "email": req.email, "password_hash": hash_password(req.password), "company_id": company_id,
     }).execute()
 
     token = secrets.token_urlsafe(32)
-    SESSIONS[token] = {"company_id": company_id, "company_name": req.company_name, "dataset_source": company_id, "email": req.email}
+    SESSIONS[token] = {"company_id": company_id, "company_name": req.company_name, "dataset_source": company_id, "currency": req.currency, "email": req.email}
     return SessionOut(token=token, api_key=api_key, webhook_secret=webhook_secret, **SESSIONS[token])
 
 

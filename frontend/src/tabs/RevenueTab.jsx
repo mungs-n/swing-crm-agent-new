@@ -3,17 +3,18 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api";
+import { useAuth } from "../context/AuthContext";
+import { formatMoney } from "../utils/currency";
 import Card from "../components/Card";
 import RankedBars from "../components/RankedBars";
 import RawDataButton from "../components/RawDataButton";
 
 const SEGMENT_COLORS = { "VIP": "#7C3AED", "충성 고객": "#A78BFA", "이탈 위험": "#C4B5FD", "휴면": "#DDD6FE" };
 
-function fmtWon(v) {
-  return v >= 10000 ? `₩${(v / 10000).toFixed(0)}만` : `₩${v.toLocaleString()}`;
-}
-
 export default function RevenueTab({ range }) {
+  const { session } = useAuth();
+  const currency = session?.currency || "KRW";
+  const fmtWon = (v) => formatMoney(v, currency, { compact: true });
   const [breakdown, setBreakdown] = useState(null);
   const [trend, setTrend] = useState([]);
   const start = range?.start;
@@ -38,7 +39,7 @@ export default function RevenueTab({ range }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#F0EDFB" vertical={false} />
             <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#888699" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 12, fill: "#888699" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v.toFixed(0)}M`} />
-            <Tooltip formatter={(v) => [`₩${v.toFixed(1)}M`, "GMV"]} contentStyle={{ borderRadius: 12, border: "1px solid #E5E0F5" }} />
+            <Tooltip formatter={(v) => [formatMoney(v * 1_000_000, currency, { compact: true }), "GMV"]} contentStyle={{ borderRadius: 12, border: "1px solid #E5E0F5" }} />
             <Line type="monotone" dataKey="gmvM" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 4, fill: "#7C3AED" }} activeDot={{ r: 6 }} />
           </LineChart>
         </ResponsiveContainer>

@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { useAuth } from "../context/AuthContext";
+import { formatMoney } from "../utils/currency";
 import { KpiCard } from "../components/Kpi";
 import DateRangeFilter from "../components/DateRangeFilter";
 import OverviewTab from "../tabs/OverviewTab";
 import RevenueTab from "../tabs/RevenueTab";
 import BehaviorTab from "../tabs/BehaviorTab";
 import DetailTab from "../tabs/DetailTab";
-
-function fmtWon(v) {
-  return `₩${(v / 1_000_000).toFixed(1)}M`;
-}
 
 const TABS = [
   { key: "overview", label: "개요", Component: OverviewTab },
@@ -19,6 +17,8 @@ const TABS = [
 ];
 
 export default function DashboardPage() {
+  const { session } = useAuth();
+  const currency = session?.currency || "KRW";
   const [kpi, setKpi] = useState(null);
   const [tab, setTab] = useState("overview");
   const [range, setRange] = useState({ start: null, end: null });
@@ -42,8 +42,8 @@ export default function DashboardPage() {
             <KpiCard label="DAU (일간)" value={`${kpi.dau.toLocaleString()}명`} delta={kpi.dau_delta} askQuestion="오늘 하루 활성 고객 수를 분석해줘" />
             <KpiCard label="WAU (주간)" value={`${kpi.wau.toLocaleString()}명`} delta={kpi.wau_delta} askQuestion="최근 7일 활성 고객 수를 분석해줘" />
             <KpiCard label="MAU (월간)" value={`${kpi.mau.toLocaleString()}명`} delta={kpi.mau_delta} askQuestion="최근 30일 활성 고객 수를 분석해줘" />
-            <KpiCard label="GMV" value={fmtWon(kpi.gmv)} delta={kpi.gmv_delta} askQuestion="GMV 변화 원인을 분석해줘" />
-            <KpiCard label="AOV" value={`₩${Math.round(kpi.aov).toLocaleString()}`} delta={kpi.aov_delta} askQuestion="평균 주문 금액(AOV) 변화를 분석해줘" />
+            <KpiCard label="GMV" value={formatMoney(kpi.gmv, currency, { compact: true })} delta={kpi.gmv_delta} askQuestion="GMV 변화 원인을 분석해줘" />
+            <KpiCard label="AOV" value={formatMoney(kpi.aov, currency)} delta={kpi.aov_delta} askQuestion="평균 주문 금액(AOV) 변화를 분석해줘" />
             <KpiCard label="구매 전환율" value={`${kpi.conversion.toFixed(1)}%`} delta={kpi.conversion_delta} askQuestion="구매 전환율 변화 원인을 분석해줘" />
           </>
         ) : (
