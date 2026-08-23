@@ -13,8 +13,10 @@
    합쳐서 보여준다.
 """
 
+import base64
 import json
 import os
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -135,6 +137,31 @@ class TestSendRequest(BaseModel):
     title: str
     body: str
     receiver: str
+    image_url: str | None = None
+
+
+class ImageUploadRequest(BaseModel):
+    image_data_url: str
+
+
+_DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|jpg|webp);base64,(.+)$")
+
+
+@router.post("/api/campaigns/upload-image")
+def upload_campaign_image(req: ImageUploadRequest, session: dict = Depends(auth.get_session)):
+    # 웹 푸시 이미지는 FCM이 외부에서 직접 fetch할 수 있는 실제 https URL이어야 해서
+    # (브라우저에서 로컬 파일을 읽어 만든 data: URL은 용량 제한에 걸리거나 그대로
+    # 표시되지 않는다), Supabase Storage의 공개 버킷에 올리고 그 URL을 돌려준다.
+    match = _DATA_URL_RE.match(req.image_data_url)
+    if not match:
+        raise HTTPException(status_code=400, detail="지원하지 않는 이미지 형식이에요 (png/jpeg/webp만 가능).")
+    ext, b64 = match.group(1), match.group(2)
+    raw = base64.b64decode(b64)
+    path = f"{uuid.uuid4().hex}.{ext}"
+    client = data_module._get_client()
+    client.storage.from_("campaign-images").upload(path, raw, {"content-type": f"image/{ext}"})
+    url = client.storage.from_("campaign-images").get_public_url(path)
+    return {"url": url}
 
 
 @router.get("/api/campaigns/target-size")
@@ -291,7 +318,7 @@ def test_send_campaign(req: TestSendRequest, session: dict = Depends(auth.get_se
         status = f"테스트 발송 완료 ({channel_label}, SendGrid {status_code})"
     elif req.channel == "webpush":
         try:
-            push_sender.send_web_push(receiver, req.title.strip(), req.body.strip())
+            push_sender.send_web_push(receiver, req.title.strip(), req.body.strip(), image=req.image_url)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"웹 푸시 발송에 실패했어요: {e}")
         status = f"테스트 발송 완료 ({channel_label}, FCM)"

@@ -94,6 +94,7 @@ export const api = {
   rawBehavior: () => get("/api/raw/behavior"),
   rawDetail: () => get("/api/raw/detail"),
   testSendCampaign: (payload) => post("/api/campaigns/test-send", payload),
+  uploadCampaignImage: (imageDataUrl) => post("/api/campaigns/upload-image", { image_data_url: imageDataUrl }),
   recurringCampaigns: () => get("/api/campaigns/recurring"),
   toggleRecurringCampaign: (id) => post(`/api/campaigns/recurring/${id}/toggle`),
   deleteRecurringCampaign: (id) => del(`/api/campaigns/recurring/${id}`),

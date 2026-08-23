@@ -74,6 +74,19 @@ export default function CampaignWizard({ onCancel, onCreated, initialSegment, in
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState("");
   const [fcmLoading, setFcmLoading] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState({ src: null, url: null });
+
+  // 웹 푸시 이미지는 FCM이 외부에서 직접 fetch하는 실제 https URL이어야 해서
+  // (로컬 파일을 읽어 만든 data: URL은 그대로 안 뜬다), 보낼 때 Supabase Storage에
+  // 업로드해 공개 URL로 바꿔서 넣는다. 같은 이미지면 재업로드하지 않고 캐시해 둔다.
+  async function getWebpushImageUrl() {
+    if (!imageDataUrl) return null;
+    if (!imageDataUrl.startsWith("data:")) return imageDataUrl;
+    if (uploadedImage.src === imageDataUrl) return uploadedImage.url;
+    const { url } = await api.uploadCampaignImage(imageDataUrl);
+    setUploadedImage({ src: imageDataUrl, url });
+    return url;
+  }
 
   async function handleGetFcmToken() {
     setFcmLoading(true);
@@ -136,7 +149,8 @@ export default function CampaignWizard({ onCancel, onCreated, initialSegment, in
     }
     setTestSending(true);
     try {
-      await api.testSendCampaign({ segment, channel, title, body, receiver: testReceiver });
+      const imageUrl = channel === "webpush" ? await getWebpushImageUrl() : null;
+      await api.testSendCampaign({ segment, channel, title, body, receiver: testReceiver, image_url: imageUrl });
       setTestResult(`[${CHANNEL_OPTIONS.find((c) => c.key === channel).label}] 테스트 메시지가 발송 이력에 기록됐어요.`);
     } catch (e) {
       setTestResult(e.message || "테스트 발송에 실패했어요.");
