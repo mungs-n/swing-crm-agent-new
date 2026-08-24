@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { useAuth } from "../context/AuthContext";
 import ChannelPreview from "../components/ChannelPreview";
 import { buildRecipeBanner } from "../utils/recipeBanner";
 import { requestFcmToken } from "../firebase";
@@ -49,13 +50,14 @@ function fileToDataUrl(file) {
 }
 
 export default function CampaignWizard({ onCancel, onCreated, onTestSent, initialSegment, initialChannel, initialSituation, templateTitle, templateBody, recipeTitle, recipeArt, recipeColors }) {
+  const { session } = useAuth();
   const [segment, setSegment] = useState(initialSegment && SEGMENT_OPTIONS.includes(initialSegment) ? initialSegment : SEGMENT_OPTIONS[0]);
   const [channel, setChannel] = useState(initialChannel && CHANNEL_OPTIONS.some((c) => c.key === initialChannel) ? initialChannel : "kakao");
   const [targetSize, setTargetSize] = useState(null);
   const [title, setTitle] = useState(templateTitle || "");
   const [body, setBody] = useState(templateBody || "");
   const [imageDataUrl, setImageDataUrl] = useState(
-    recipeArt && recipeColors ? buildRecipeBanner({ title: recipeTitle, art: recipeArt, colors: recipeColors }) : null
+    recipeArt && recipeColors ? buildRecipeBanner({ title: recipeTitle, art: recipeArt, colors: recipeColors, brand: session?.company_name }) : null
   );
   const [generating, setGenerating] = useState(false);
   const [triggerType, setTriggerType] = useState("schedule");

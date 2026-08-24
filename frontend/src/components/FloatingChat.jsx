@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "../context/ChatContext";
+import { useAuth } from "../context/AuthContext";
 
 const EXAMPLE_QUESTIONS = [
   "지금 가장 시급한 문제는?",
@@ -146,6 +147,7 @@ function Message({ idx, msg, isLast, onQuickReply }) {
 }
 
 export default function FloatingChat() {
+  const { session } = useAuth();
   const {
     isOpen, setIsOpen, messages, loading, send, askQuestion, seenCount, executionMode, setExecutionMode,
     draftInput, setDraftInput, ghostSuggestion, setGhostSuggestion,
@@ -241,7 +243,7 @@ export default function FloatingChat() {
             {messages.length === 0 && (
               <>
                 <p className="text-xs text-slate-500">
-                  안녕하세요! ATHLEPA CRM AI 어시스턴트입니다.<br />고객 데이터 분석, 세그먼트 조회 등 원하는 걸 물어보세요.
+                  안녕하세요! {session?.company_name ? `${session.company_name} ` : ""}AI 어시스턴트입니다.<br />고객 데이터 분석, 세그먼트 조회 등 원하는 걸 물어보세요.
                 </p>
                 <div className="grid grid-cols-1 gap-1.5">
                   {EXAMPLE_QUESTIONS.map((q) => (

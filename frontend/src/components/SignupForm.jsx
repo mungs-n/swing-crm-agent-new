@@ -30,7 +30,7 @@ export default function SignupForm({ onSwitchToLogin }) {
     <div className="flex min-h-screen items-center justify-center bg-[#FAFAFC]">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200/40">
         <h1 className="text-center text-lg font-bold text-slate-900">회사 계정 등록</h1>
-        <p className="mt-0.5 text-center text-[11px] text-slate-400">새 회사로 ATHLEPA CRM을 시작하세요</p>
+        <p className="mt-0.5 text-center text-[11px] text-slate-400">새 회사로 AI CRM 플랫폼을 시작하세요</p>
 
         <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-2.5">
           <input

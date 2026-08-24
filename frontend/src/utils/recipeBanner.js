@@ -15,10 +15,11 @@ function escapeXml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function buildRecipeBanner({ title, art, colors }) {
+export function buildRecipeBanner({ title, art, colors, brand }) {
   const [c1, c2] = colors;
   const icon = (ICON_PATHS[art] || ICON_PATHS.star).replace(/currentColor/g, c2);
   const safeTitle = escapeXml(title);
+  const safeBrand = escapeXml((brand || "").toUpperCase());
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300">
@@ -29,7 +30,7 @@ export function buildRecipeBanner({ title, art, colors }) {
     </linearGradient>
   </defs>
   <rect width="600" height="300" fill="url(#bg)"/>
-  <text x="36" y="46" font-family="'Pretendard','Apple SD Gothic Neo',sans-serif" font-size="17" font-weight="800" letter-spacing="1" fill="${c2}" opacity="0.85">ATHLEPA</text>
+  ${safeBrand ? `<text x="36" y="46" font-family="'Pretendard','Apple SD Gothic Neo',sans-serif" font-size="17" font-weight="800" letter-spacing="1" fill="${c2}" opacity="0.85">${safeBrand}</text>` : ""}
   <svg x="220" y="52" width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="${c2}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
     ${icon}
   </svg>
