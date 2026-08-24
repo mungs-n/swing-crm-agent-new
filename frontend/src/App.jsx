@@ -160,7 +160,6 @@ function Shell() {
                 <>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[10px] font-medium text-slate-200">{session.company_name}</p>
-                    <p className="text-[9px] text-slate-500">실험 버전</p>
                   </div>
                   <button onClick={logout} className="shrink-0 text-[9px] font-medium text-slate-500 hover:text-slate-300">
                     로그아웃
@@ -177,7 +176,6 @@ function Shell() {
               <h2 className="text-sm font-bold text-slate-900">{pageTitle}</h2>
               <p className="mt-0.5 text-[10px] text-slate-400">{navItem.subtitle}</p>
             </div>
-            <span className="rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-medium text-violet-600">React + FastAPI 실험 버전</span>
           </header>
           <main className="px-6 py-5">
             <Active />

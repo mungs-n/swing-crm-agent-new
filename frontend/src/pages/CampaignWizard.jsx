@@ -441,7 +441,7 @@ export default function CampaignWizard({ onCancel, onCreated, onTestSent, initia
           )}
 
           <p className="mt-2 text-[9px] text-slate-300">
-            전체/예약/반복 발송은 아직 실제 발송 연동 전이라, 캠페인 기록만 생성되고 실제 메시지는 나가지 않아요 (실험 버전). 이메일·웹 푸시 테스트 발송만 실제로 나가요.
+            전체/예약/반복 발송은 아직 실제 발송 연동 전이라, 캠페인 기록만 생성되고 실제 메시지는 나가지 않아요. 이메일·웹 푸시 테스트 발송만 실제로 나가요.
           </p>
         </Block>
 

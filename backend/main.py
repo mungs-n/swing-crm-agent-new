@@ -1,5 +1,5 @@
 """
-ATHLEPA CRM 실험용 백엔드 (Streamlit 대신 React 프론트엔드에 데이터를 내려주는 API).
+ATHLEPA CRM 백엔드 (Streamlit 대신 React 프론트엔드에 데이터를 내려주는 API).
 같은 Supabase 프로젝트를 그대로 재사용한다 - 데이터/스키마는 기존 Streamlit 앱과 동일.
 """
 
@@ -23,7 +23,7 @@ import raw_data
 
 load_dotenv()
 
-app = FastAPI(title="ATHLEPA CRM API (experimental)")
+app = FastAPI(title="ATHLEPA CRM API")
 
 app.add_middleware(
     CORSMiddleware,
