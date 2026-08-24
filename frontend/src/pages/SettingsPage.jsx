@@ -261,26 +261,24 @@ function ChatbotSection() {
 export default function SettingsPage() {
   const { logout } = useAuth();
   return (
-    <div className="flex max-w-4xl flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-4">
-          <AccountSection />
-          <PasswordSection />
-        </div>
-        <div className="flex flex-col gap-4">
-          <ApiKeysSection />
-          <ChatbotSection />
-        </div>
+    <div className="grid max-w-5xl grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="flex flex-col gap-4">
+        <AccountSection />
+        <PasswordSection />
+        <ApiKeysSection />
       </div>
-      <IntegrationGuideSection />
-      <Block title="세션">
-        <button
-          onClick={logout}
-          className="rounded-lg border border-rose-200 px-4 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-50"
-        >
-          로그아웃
-        </button>
-      </Block>
+      <div className="flex flex-col gap-4">
+        <IntegrationGuideSection />
+        <ChatbotSection />
+        <Block title="세션">
+          <button
+            onClick={logout}
+            className="rounded-lg border border-rose-200 px-4 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-50"
+          >
+            로그아웃
+          </button>
+        </Block>
+      </div>
     </div>
   );
 }
