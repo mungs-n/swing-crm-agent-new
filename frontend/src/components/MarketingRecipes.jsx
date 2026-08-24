@@ -3,7 +3,7 @@ import RecipeArt from "./RecipeArt";
 
 const COLLAPSED_COUNT = 3;
 
-export default function MarketingRecipes({ campaigns, onSelectRecipe, onOpenAll }) {
+export default function MarketingRecipes({ onSelectRecipe, onOpenAll }) {
   const visible = RECIPES.slice(0, COLLAPSED_COUNT);
 
   return (
@@ -19,37 +19,33 @@ export default function MarketingRecipes({ campaigns, onSelectRecipe, onOpenAll 
       </div>
 
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        {visible.map((r) => {
-          const used = campaigns.some((c) => c.segment === r.segment);
-          return (
-            <button
-              key={r.id}
-              onClick={() => onSelectRecipe(r)}
-              className="group overflow-hidden rounded-lg border border-slate-200 text-left transition hover:border-violet-300 hover:shadow-md hover:shadow-violet-100/50"
+        {visible.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => onSelectRecipe(r)}
+            className="group overflow-hidden rounded-lg border border-slate-200 text-left transition hover:border-violet-300 hover:shadow-md hover:shadow-violet-100/50"
+          >
+            <div
+              className="flex h-14 items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${r.colors[0]}, ${r.colors[1]}40)`, color: r.colors[1] }}
             >
-              <div
-                className="flex h-14 items-center justify-center"
-                style={{ background: `linear-gradient(135deg, ${r.colors[0]}, ${r.colors[1]}40)`, color: r.colors[1] }}
-              >
-                <RecipeArt art={r.art} size={26} />
-              </div>
-              <div className="p-2.5">
-                <div className="mb-1 flex gap-1">
-                  {r.isNew && <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[8px] font-bold text-violet-600">NEW</span>}
-                  <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-medium ${used ? "bg-slate-100 text-slate-400" : "bg-emerald-50 text-emerald-600"}`}>
-                    {used ? "사용해봄" : "미사용"}
-                  </span>
+              <RecipeArt art={r.art} size={26} />
+            </div>
+            <div className="p-2.5">
+              {r.isNew && (
+                <div className="mb-1">
+                  <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[8px] font-bold text-violet-600">NEW</span>
                 </div>
-                <p className="text-[11px] font-bold leading-snug text-slate-800">{r.title}</p>
-                <p className="mt-0.5 text-[9px] text-slate-400">{r.situation}</p>
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[9px] text-slate-500">{r.segment}</span>
-                  <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[9px] text-slate-500">{CHANNEL_LABEL[r.channel]}</span>
-                </div>
+              )}
+              <p className="text-[11px] font-bold leading-snug text-slate-800">{r.title}</p>
+              <p className="mt-0.5 text-[9px] text-slate-400">{r.situation}</p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[9px] text-slate-500">{r.segment}</span>
+                <span className="rounded bg-slate-50 px-1.5 py-0.5 text-[9px] text-slate-500">{CHANNEL_LABEL[r.channel]}</span>
               </div>
-            </button>
-          );
-        })}
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );

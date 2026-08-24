@@ -122,7 +122,6 @@ export default function CampaignsTab() {
   if (recipesOpen) {
     return (
       <MarketingRecipesPage
-        campaigns={campaigns || []}
         onBack={() => setRecipesOpen(false)}
         onSelectRecipe={(r) => { setRecipesOpen(false); openWizard(r); }}
       />
@@ -168,7 +167,7 @@ export default function CampaignsTab() {
         </button>
       </div>
 
-      <MarketingRecipes campaigns={campaigns} onSelectRecipe={(r) => openWizard(r)} onOpenAll={() => setRecipesOpen(true)} />
+      <MarketingRecipes onSelectRecipe={(r) => openWizard(r)} onOpenAll={() => setRecipesOpen(true)} />
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_260px]">
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/40">

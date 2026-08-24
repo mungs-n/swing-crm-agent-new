@@ -1,7 +1,7 @@
 import { CATEGORIES, RECIPES, CHANNEL_LABEL } from "../data/marketingRecipes";
 import RecipeArt from "../components/RecipeArt";
 
-function RecipeCard({ r, used, onSelectRecipe }) {
+function RecipeCard({ r, onSelectRecipe }) {
   return (
     <button
       onClick={() => onSelectRecipe(r)}
@@ -14,12 +14,11 @@ function RecipeCard({ r, used, onSelectRecipe }) {
         <RecipeArt art={r.art} size={34} />
       </div>
       <div className="p-3">
-        <div className="mb-1.5 flex gap-1">
-          {r.isNew && <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[8px] font-bold text-violet-600">NEW</span>}
-          <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-medium ${used ? "bg-slate-100 text-slate-400" : "bg-emerald-50 text-emerald-600"}`}>
-            {used ? "사용해봄" : "미사용"}
-          </span>
-        </div>
+        {r.isNew && (
+          <div className="mb-1.5">
+            <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[8px] font-bold text-violet-600">NEW</span>
+          </div>
+        )}
         <p className="text-[12px] font-bold leading-snug text-slate-800">{r.title}</p>
         <p className="mt-1 text-[10px] text-slate-400">{r.situation}</p>
         <div className="mt-2 flex flex-wrap gap-1">
@@ -32,7 +31,7 @@ function RecipeCard({ r, used, onSelectRecipe }) {
   );
 }
 
-export default function MarketingRecipesPage({ campaigns, onBack, onSelectRecipe }) {
+export default function MarketingRecipesPage({ onBack, onSelectRecipe }) {
   return (
     <div>
       <button onClick={onBack} className="mb-3 w-fit text-[11px] font-medium text-slate-400 hover:text-violet-600">
@@ -58,7 +57,7 @@ export default function MarketingRecipesPage({ campaigns, onBack, onSelectRecipe
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {items.map((r) => (
-                  <RecipeCard key={r.id} r={r} used={campaigns.some((c) => c.segment === r.segment)} onSelectRecipe={onSelectRecipe} />
+                  <RecipeCard key={r.id} r={r} onSelectRecipe={onSelectRecipe} />
                 ))}
               </div>
             </div>
