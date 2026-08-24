@@ -9,6 +9,23 @@ const EXAMPLE_QUESTIONS = [
   "전환율을 어떻게 올리면 좋을까?",
 ];
 
+// AI를 상징하는 스파클 아이콘 (이모지 대신 직접 그린 SVG - Heroicons sparkles 형태).
+function SparkleIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M9 4.5a.75.75 0 0 1 .721.544l.813 2.846a3.75 3.75 0 0 0 2.576 2.576l2.846.813a.75.75 0 0 1 0 1.442l-2.846.813a3.75 3.75 0 0 0-2.576 2.576l-.813 2.846a.75.75 0 0 1-1.442 0l-.813-2.846a3.75 3.75 0 0 0-2.576-2.576l-2.846-.813a.75.75 0 0 1 0-1.442l2.846-.813A3.75 3.75 0 0 0 7.466 7.89l.813-2.846A.75.75 0 0 1 9 4.5ZM18 1.5a.75.75 0 0 1 .728.568l.258 1.036c.236.94.97 1.674 1.91 1.91l1.036.258a.75.75 0 0 1 0 1.456l-1.036.258c-.94.236-1.674.97-1.91 1.91l-.258 1.036a.75.75 0 0 1-1.456 0l-.258-1.036a2.625 2.625 0 0 0-1.91-1.91l-1.036-.258a.75.75 0 0 1 0-1.456l1.036-.258a2.625 2.625 0 0 0 1.91-1.91l.258-1.036A.75.75 0 0 1 18 1.5Z" />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={className}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
 const CAMPAIGN_CHANNELS = ["카카오톡", "SMS", "이메일", "웹푸시"];
 
 function renderText(text) {
@@ -205,7 +222,8 @@ export default function FloatingChat() {
         <div className="fixed bottom-20 right-5 z-50 flex h-[680px] w-[420px] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-violet-100 bg-white shadow-2xl shadow-violet-300/30">
           <div className="flex items-center justify-between border-b border-violet-100 px-3 py-2.5">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-800">🤖 AI 어시스턴트</span>
+              <SparkleIcon className="h-3.5 w-3.5 text-violet-500" />
+              <span className="text-xs font-semibold text-slate-800">AI 어시스턴트</span>
               <span className="flex items-center gap-1 text-[9px] text-slate-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />온라인
               </span>
@@ -314,9 +332,15 @@ export default function FloatingChat() {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 rounded-full bg-violet-600 px-3 py-2.5 text-[11px] font-medium text-white shadow-lg shadow-violet-400/40 transition hover:bg-violet-700 hover:shadow-xl"
+        aria-label="AI 어시스턴트"
+        className="fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 text-white shadow-lg shadow-violet-400/40 transition hover:bg-violet-700 hover:shadow-xl"
       >
-        {isOpen ? "✕" : unseen > 0 ? `💬 ${unseen}` : "💬 AI 어시스턴트"}
+        {isOpen ? <CloseIcon className="h-5 w-5" /> : <SparkleIcon className="h-6 w-6" />}
+        {!isOpen && unseen > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
+            {unseen}
+          </span>
+        )}
       </button>
     </>
   );
