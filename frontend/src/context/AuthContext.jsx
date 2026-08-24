@@ -39,11 +39,11 @@ export function AuthProvider({ children }) {
     setSession(data);
   }, []);
 
-  const signup = useCallback(async (companyName, email, password) => {
+  const signup = useCallback(async (companyName, email, password, currency) => {
     const res = await fetch(`${API_BASE}/api/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ company_name: companyName, email, password }),
+      body: JSON.stringify({ company_name: companyName, email, password, currency }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

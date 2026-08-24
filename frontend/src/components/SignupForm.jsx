@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
+const CURRENCY_OPTIONS = [
+  { code: "KRW", label: "KRW - 원화 (₩)" },
+  { code: "USD", label: "USD - 달러 ($)" },
+  { code: "EUR", label: "EUR - 유로 (€)" },
+  { code: "JPY", label: "JPY - 엔화 (¥)" },
+  { code: "GBP", label: "GBP - 파운드 (£)" },
+];
+
 export default function SignupForm({ onSwitchToLogin }) {
   const { signup } = useAuth();
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [currency, setCurrency] = useState("KRW");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +27,7 @@ export default function SignupForm({ onSwitchToLogin }) {
     }
     setLoading(true);
     try {
-      await signup(companyName, email, password);
+      await signup(companyName, email, password, currency);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -53,6 +62,19 @@ export default function SignupForm({ onSwitchToLogin }) {
             onChange={(e) => setPassword(e.target.value)}
             className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs outline-none focus:border-violet-300"
           />
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] text-slate-400">사용 통화</span>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs outline-none focus:border-violet-300"
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+            <span className="text-[9px] text-slate-300">가입 후에는 바꿀 수 없어요 - 주문 금액 표시 기준이에요.</span>
+          </label>
           {error && <p className="text-[11px] text-rose-500">{error}</p>}
           <button
             type="submit"
