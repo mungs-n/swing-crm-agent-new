@@ -261,13 +261,13 @@ function ChatbotSection() {
 export default function SettingsPage() {
   const { logout } = useAuth();
   return (
-    <div className="grid max-w-5xl grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
       <div className="flex flex-col gap-4">
         <AccountSection />
         <PasswordSection />
         <ApiKeysSection />
       </div>
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <IntegrationGuideSection />
         <ChatbotSection />
         <Block title="세션">
