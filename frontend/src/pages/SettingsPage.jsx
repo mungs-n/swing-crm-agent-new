@@ -5,8 +5,8 @@ import { useChat } from "../context/ChatContext";
 
 function Block({ title, children }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200/40">
-      <h3 className="mb-4 text-base font-bold text-slate-900">{title}</h3>
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/40">
+      <h3 className="mb-2.5 text-xs font-bold text-slate-900">{title}</h3>
       {children}
     </div>
   );
@@ -16,7 +16,7 @@ function PrimaryButton({ children, ...props }) {
   return (
     <button
       {...props}
-      className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-violet-700 disabled:opacity-50"
+      className="rounded-md bg-violet-600 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-violet-700 disabled:opacity-50"
     >
       {children}
     </button>
@@ -27,7 +27,7 @@ function AccountSection() {
   const { session } = useAuth();
   return (
     <Block title="계정 정보">
-      <div className="flex flex-col gap-3 text-sm">
+      <div className="flex flex-col gap-1.5 text-[11px]">
         <div className="flex justify-between">
           <span className="text-slate-500">회사명</span>
           <span className="font-semibold text-slate-800">{session.company_name}</span>
@@ -38,7 +38,7 @@ function AccountSection() {
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">회사 ID</span>
-          <span className="font-mono text-xs text-slate-600">{session.company_id}</span>
+          <span className="font-mono text-[10px] text-slate-600">{session.company_id}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">통화</span>
@@ -83,24 +83,24 @@ function PasswordSection() {
 
   return (
     <Block title="비밀번호 변경">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-1.5">
         <input
           type="password" value={current} onChange={(e) => setCurrent(e.target.value)}
           placeholder="현재 비밀번호" required
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-violet-300"
+          className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
         />
         <input
           type="password" value={next} onChange={(e) => setNext(e.target.value)}
           placeholder="새 비밀번호" required
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-violet-300"
+          className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
         />
         <input
           type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
           placeholder="새 비밀번호 확인" required
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-violet-300"
+          className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs outline-none focus:border-violet-300"
         />
-        {error && <p className="text-xs text-rose-500">{error}</p>}
-        {message && <p className="text-xs text-emerald-600">{message}</p>}
+        {error && <p className="text-[10px] text-rose-500">{error}</p>}
+        {message && <p className="text-[10px] text-emerald-600">{message}</p>}
         <PrimaryButton type="submit" disabled={submitting}>{submitting ? "변경 중..." : "비밀번호 변경"}</PrimaryButton>
       </form>
     </Block>
@@ -130,13 +130,13 @@ function ApiKeysSection() {
 
   return (
     <Block title="API 키 관리">
-      <div className="flex flex-col gap-3 text-sm">
-        <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2 text-[11px]">
+        <div className="flex flex-col gap-1">
           <span className="text-slate-500">API 키</span>
-          <span className="break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-700">{apiKey || "불러오는 중..."}</span>
+          <span className="break-all rounded-md bg-slate-50 px-2 py-1.5 font-mono text-[10px] text-slate-700">{apiKey || "불러오는 중..."}</span>
         </div>
         {regenerated && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-[10px] text-amber-700">
             <p className="font-semibold">새 웹훅 시크릿 (지금만 표시돼요, 꼭 복사해두세요)</p>
             <p className="mt-1 break-all font-mono">{regenerated.webhook_secret}</p>
           </div>
@@ -166,11 +166,11 @@ function CodeBlock({ children }) {
     <div className="relative">
       <button
         onClick={handleCopy}
-        className="absolute right-3 top-3 rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-200 transition hover:bg-slate-600"
+        className="absolute right-2 top-2 rounded bg-slate-700 px-2 py-0.5 text-[10px] font-medium text-slate-200 transition hover:bg-slate-600"
       >
         {copied ? "복사됨" : "복사"}
       </button>
-      <pre className="overflow-x-auto rounded-lg bg-slate-900 p-4 pr-16 text-[13px] leading-relaxed text-slate-100">
+      <pre className="overflow-x-auto rounded-md bg-slate-900 p-3 pr-14 text-[11px] leading-relaxed text-slate-100">
         <code>{children}</code>
       </pre>
     </div>
@@ -179,13 +179,13 @@ function CodeBlock({ children }) {
 
 function GuideStep({ n, title, note, children }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-6 w-8 shrink-0 items-center justify-center rounded-md bg-violet-100 text-[11px] font-bold text-violet-600">
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <span className="flex h-4 w-6 shrink-0 items-center justify-center rounded bg-violet-100 text-[9px] font-bold text-violet-600">
           {n}
         </span>
-        <span className="text-sm font-semibold text-slate-800">{title}</span>
-        <span className="text-xs text-slate-400">{note}</span>
+        <span className="text-[11px] font-semibold text-slate-800">{title}</span>
+        <span className="text-[10px] text-slate-400">{note}</span>
       </div>
       {children}
     </div>
@@ -203,12 +203,12 @@ function IntegrationGuideSection() {
 
   return (
     <Block title="API 연동 가이드">
-      <p className="mb-5 text-sm leading-relaxed text-slate-500">
+      <p className="mb-3 text-[10px] leading-relaxed text-slate-500">
         자사 웹사이트/서버에서 아래처럼 요청을 보내면 실시간으로 데이터가 들어와요. 주문·고객 데이터는 위{" "}
         <span className="font-semibold text-violet-600">API 키</span>가 아니라 웹훅 시크릿으로 인증해요 (키 재발급 시 한 번만 표시돼요).
       </p>
 
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
         <GuideStep n="01" title="이벤트 수집" note="방문·클릭·구매 등, 공개 API 키">
           <CodeBlock>{`curl -X POST ${API_BASE}/api/ingest/track \\
   -H "Content-Type: application/json" \\
@@ -237,23 +237,23 @@ function ChatbotSection() {
   ];
   return (
     <Block title="AI 챗봇 기본 실행 권한">
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1.5">
         {OPTIONS.map(([k, label, desc]) => (
           <label
             key={k}
-            className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 transition ${
+            className={`flex cursor-pointer flex-col gap-0.5 rounded-md border p-2 transition ${
               executionMode === k ? "border-violet-400 bg-violet-50" : "border-slate-200 hover:border-slate-300"
             }`}
           >
-            <span className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-800">
               <input type="radio" name="settings-exec-mode" checked={executionMode === k} onChange={() => setExecutionMode(k)} />
               {label}
             </span>
-            <span className="pl-5 text-xs text-slate-500">{desc}</span>
+            <span className="pl-4 text-[10px] text-slate-500">{desc}</span>
           </label>
         ))}
       </div>
-      <p className="mt-3 text-xs text-slate-400">언제든 채팅창 안에서도 바꿀 수 있어요.</p>
+      <p className="mt-2 text-[9px] text-slate-400">언제든 채팅창 안에서도 바꿀 수 있어요.</p>
     </Block>
   );
 }
@@ -261,23 +261,21 @@ function ChatbotSection() {
 export default function SettingsPage() {
   const { logout } = useAuth();
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
-      <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[340px_1fr]">
+      <div className="flex flex-col gap-3">
         <AccountSection />
         <PasswordSection />
         <ApiKeysSection />
       </div>
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-3">
         <IntegrationGuideSection />
         <ChatbotSection />
-        <Block title="세션">
-          <button
-            onClick={logout}
-            className="rounded-lg border border-rose-200 px-4 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-50"
-          >
-            로그아웃
-          </button>
-        </Block>
+        <button
+          onClick={logout}
+          className="w-fit text-[10px] font-medium text-rose-500 hover:underline"
+        >
+          로그아웃
+        </button>
       </div>
     </div>
   );
