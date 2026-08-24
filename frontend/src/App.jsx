@@ -103,7 +103,7 @@ function Shell() {
   return (
     <ChatProvider>
       <div className="flex min-h-screen bg-[#F7F8FA]">
-        <aside className={`flex shrink-0 flex-col bg-[#20232E] px-3 py-4 transition-all ${collapsed ? "w-16" : "w-48"}`}>
+        <aside className={`sticky top-0 flex h-screen shrink-0 flex-col overflow-y-auto bg-[#20232E] px-3 py-4 transition-all ${collapsed ? "w-16" : "w-48"}`}>
           <div className={`flex items-center gap-2 ${collapsed ? "flex-col" : ""}`}>
             <div className={`flex items-center gap-2 px-1 ${collapsed ? "justify-center" : "min-w-0 flex-1"}`}>
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-500 text-xs font-bold text-white">{initial}</div>
