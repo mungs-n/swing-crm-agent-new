@@ -1,6 +1,6 @@
 // 배포 환경에서는 Vercel 등에 VITE_API_BASE 환경변수로 실제 백엔드 URL을 지정한다.
 // 로컬 개발에서는 지정 안 하면 기존처럼 로컬 백엔드를 그대로 바라본다.
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8600";
+export const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8600";
 const STORAGE_KEY = "athlepa_crm_token";
 
 class UnauthorizedError extends Error {}
