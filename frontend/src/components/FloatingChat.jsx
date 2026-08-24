@@ -236,7 +236,7 @@ export default function FloatingChat() {
               onClick={() => setSettingsOpen((v) => !v)}
               className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-medium text-slate-500 hover:bg-violet-50/50"
             >
-              ⚙️ AI 실행 권한
+              AI 실행 권한
               <span>{settingsOpen ? "▲" : "▼"}</span>
             </button>
             {settingsOpen && (
@@ -286,7 +286,7 @@ export default function FloatingChat() {
             )}
           </div>
 
-          <div className="flex items-end gap-1.5 border-t border-violet-100 p-2.5">
+          <div className="flex items-stretch gap-1.5 border-t border-violet-100 p-2.5">
             <div className="relative flex-1">
               {ghostSuggestion && !input && (
                 <div className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-md px-2.5 py-1.5 text-xs text-slate-400">
@@ -322,7 +322,7 @@ export default function FloatingChat() {
             <button
               onClick={() => handleSend()}
               disabled={loading}
-              className="rounded-md bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-violet-700 disabled:opacity-40"
+              className="flex shrink-0 items-center justify-center rounded-md bg-violet-600 px-3 text-xs font-medium text-white transition hover:bg-violet-700 disabled:opacity-40"
             >
               보내기
             </button>
